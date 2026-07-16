@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mockware — Generate mock SDK layers for embedded testing</title>
+  <meta name="description" content="Parse real embedded SDK headers into a YAML knowledge base and generate stub headers with overridable function pointers for unit testing.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+</head>
+<body>
+
+  <!-- ─── Nav ─────────────────────────────────────── -->
+  <nav>
+    <div class="container">
+      <a href="#" class="logo"><span>mock</span>ware</a>
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#start">Quick start</a></li>
+        <li><a href="#test">Testing</a></li>
+        <li><button id="theme-toggle" aria-label="Toggle theme">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ─── Hero ────────────────────────────────────── -->
+  <header class="hero">
+    <div class="container">
+      <h1><span>mock</span>ware</h1>
+      <p class="tagline">
+        Generate mock SDK layers for embedded unit testing &mdash;
+        parse real SDK headers, generate stub implementations, and
+        override any function at test time.
+      </p>
+      <div class="buttons">
+        <a href="#start" class="btn btn-primary">Get started &rarr;</a>
+        <a href="https://github.com/your-org/mockware" class="btn btn-secondary">GitHub</a>
+      </div>
+
+      <div class="hero-terminal">
+        <div class="bar">
+          <span></span><span></span><span></span>
+          <span class="title">bash</span>
+        </div>
+        <pre><code><span style="color:#8b949e"># Phase 1: Parse SDK headers into a knowledge base</span>
+<span style="color:#3fb950">$</span> mockware parse <span style="color:#79c0ff">$IDF_PATH</span> -o known_apis.yml
+
+<span style="color:#8b949e"># Phase 2: Generate mock SDK for your project</span>
+<span style="color:#3fb950">$</span> mockware generate \
+    --project <span style="color:#79c0ff">.</span> \
+    --input known_apis.yml \
+    --output mock-sdk
+
+<span style="color:#8b949e"># Phase 3: Build and run tests</span>
+<span style="color:#3fb950">$</span> cmake -B build && cmake --build build
+<span style="color:#3fb950">$</span> ./build/test_runner
+<span style="color:#8b949e">All tests passed!</span></code></pre>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── How it works ────────────────────────────── -->
+  <section id="how">
+    <div class="container">
+      <div class="section-title">
+        <h2>How it works</h2>
+        <p>Two-phase design keeps the knowledge base reusable across projects and configurations.</p>
+      </div>
+
+      <div class="diagram">
+        <div class="diagram-row">
+          <div class="diagram-box">
+            <div class="icon">📦</div>
+            <div class="label">SDK components/<br>headers</div>
+          </div>
+          <span class="diagram-arrow">&rarr;</span>
+          <div class="diagram-box" style="min-width:180px">
+            <div class="icon">📋</div>
+            <div><strong>known_apis.yml</strong></div>
+            <div class="label">Macros · Types · Enums · Structs · Functions</div>
+          </div>
+          <span class="diagram-arrow">&larr;</span>
+          <div class="diagram-box">
+            <div class="icon">📁</div>
+            <div class="label">Your project<br><code>#include</code>s</div>
+          </div>
+        </div>
+        <div style="margin:0.5rem 0;color:var(--text-dim);font-size:1.5rem;">&#8595;</div>
+        <div class="diagram-row">
+          <div class="diagram-box" style="min-width:200px;background:var(--accent);color:#fff;">
+            <div class="icon">⚡</div>
+            <div><strong>mockware generate</strong></div>
+          </div>
+          <span class="diagram-arrow">&rarr;</span>
+          <div class="diagram-box" style="min-width:220px">
+            <div class="icon">🧩</div>
+            <div><strong>mock-sdk/</strong></div>
+            <div class="label">
+              include/<br>
+              source/ + function pointers<br>
+              CMakeLists.txt
+            </div>
+          </div>
+          <span class="diagram-arrow">&rarr;</span>
+          <div class="diagram-box" style="min-width:140px">
+            <div class="icon">✅</div>
+            <div class="label">cmake &amp; test</div>
+          </div>
+        </div>
+        <div class="sub">
+          <span>include/esp_err.h</span>
+          <span>include/esp_wifi.h</span>
+          <span>include/nvs_flash.h</span>
+          <span>include/esp_err_fakes.h</span>
+          <span>include/esp_wifi_fakes.h</span>
+          <span>include/nvs_flash_fakes.h</span>
+          <span>source/esp_wifi.c</span>
+          <span>source/nvs_flash.c</span>
+          <span>CMakeLists.txt</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Features ────────────────────────────────── -->
+  <section id="features">
+    <div class="container">
+      <div class="section-title">
+        <h2>Features</h2>
+        <p>Designed for real-world embedded projects, not just demos.</p>
+      </div>
+      <div class="features">
+        <div class="feature-card">
+          <div class="emoji">🎯</div>
+          <h3>Function-pointer overrides</h3>
+          <p>Every stub exports a <code>_fp</code> pointer. Per-component <code>*_fakes.h</code> headers declare them as <code>extern</code>&mdash;just include and assign in tests.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">📂</div>
+          <h3>Mirrored include paths</h3>
+          <p>Generated headers preserve the SDK directory structure. <code>#include "driver/gpio.h"</code> just works.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">🔁</div>
+          <h3>Reusable YAML base</h3>
+          <p>Parse once, generate many times. Share <code>known_apis.yml</code> across projects and CI runners.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">🧩</div>
+          <h3>Framework-agnostic</h3>
+          <p>Works with ESP-IDF today. Designed to support Zephyr, STM32 HAL, and any C/C++ embedded SDK.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">⚡</div>
+          <h3>Minimal runtime</h3>
+          <p>Function pointers add zero overhead in release builds. Swap them out freely in test builds.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">📝</div>
+          <h3>Auto-generated defaults</h3>
+          <p>Functions return sensible defaults (<code>ESP_OK</code>, <code>NULL</code>, <code>0</code>) based on return type. Override only what you need.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Quick start ─────────────────────────────── -->
+  <section id="start">
+    <div class="container">
+      <div class="section-title">
+        <h2>Quick start</h2>
+        <p>Three commands to go from SDK headers to passing tests.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Parse SDK headers</h3>
+            <p>Point <code>mockware parse</code> at your SDK installation. It scans every component and builds a complete YAML knowledge base of macros, types, enums, structs, and function declarations.</p>
+            <div class="code-block">
+              <pre><code><span style="color:#8b949e"># Build the knowledge base</span>
+mockware parse <span style="color:#79c0ff">$IDF_PATH</span> -o known_apis.yml
+
+<span style="color:#8b949e"># Or target specific components</span>
+mockware parse <span style="color:#79c0ff">$IDF_PATH</span> \
+    --components <span style="color:#a5d6ff">esp_wifi,nvs_flash,driver</span> \
+    --output known_apis.yml</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Generate mock SDK</h3>
+            <p>The generator scans your project for SDK <code>#include</code> directives, then produces stub headers + implementations &mdash; only for what you actually use.</p>
+            <div class="code-block">
+              <pre><code>mockware generate \
+    --project <span style="color:#79c0ff">.</span> \
+    --input known_apis.yml \
+    --output mock-sdk</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Link and test</h3>
+            <p>Add the generated CMake target to your test build and link against it.</p>
+            <div class="code-block">
+              <pre><code><span style="color:#8b949e"># In your test CMakeLists.txt</span>
+add_subdirectory(mock-sdk)
+target_link_libraries(my_test PRIVATE mock_sdk)</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Installation ────────────────────────────── -->
+  <section id="install">
+    <div class="container">
+      <div class="section-title">
+        <h2>Installation</h2>
+        <p>Python 3.10+ required. <code>gcc</code> needed for header parsing.</p>
+      </div>
+
+      <div class="tabs">
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="tab-uv">uv</button>
+          <button class="tab-btn" data-tab="tab-pip">pip</button>
+          <button class="tab-btn" data-tab="tab-run">Run without install</button>
+        </div>
+
+        <div class="tab-content active" id="tab-uv">
+          <div class="code-block">
+            <pre><code>uv tool install mockware</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-pip">
+          <div class="code-block">
+            <pre><code>pip install mockware</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-run">
+          <div class="code-block">
+            <pre><code><span style="color:#8b949e"># From the repo root</span>
+uv run mockware --help</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <p style="text-align:center;margin-top:1rem;">
+        <a href="#start" class="btn btn-primary">Get started &rarr;</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── Testing example ─────────────────────────── -->
+  <section id="test">
+    <div class="container">
+      <div class="section-title">
+        <h2>Testing with custom fakes</h2>
+        <p>Every generated stub exposes a function pointer you can reassign.</p>
+      </div>
+
+      <div class="test-grid">
+        <figure>
+          <figcaption>Production code (<code>wifi_manager.c</code>)</figcaption>
+          <div class="code-block">
+            <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_wifi.h"</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"nvs_flash.h"</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_err.h"</span>
+
+<span style="color:#ffa657">wifi_mgr_status_t</span> <span style="color:#d2a8ff">wifi_manager_start</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ffa657">esp_err_t</span> ret;
+
+    ret = <span style="color:#d2a8ff">nvs_flash_init</span>();
+    <span style="color:#ff7b72">if</span> (ret != ESP_OK)
+        <span style="color:#ff7b72">return</span> WIFI_MGR_FAIL;
+
+    ret = <span style="color:#d2a8ff">esp_wifi_start</span>();
+    <span style="color:#ff7b72">if</span> (ret != ESP_OK)
+        <span style="color:#ff7b72">return</span> WIFI_MGR_FAIL;
+
+    <span style="color:#ff7b72">return</span> WIFI_MGR_OK;
+}</code></pre>
+          </div>
+        </figure>
+
+        <figure>
+          <figcaption>Test code (<code>test_wifi_manager.c</code>)</figcaption>
+          <div class="code-block">
+            <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">&lt;assert.h&gt;</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"wifi_manager.h"</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_wifi_fakes.h"</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"nvs_flash_fakes.h"</span>
+
+<span style="color:#ff7b72">static</span> <span style="color:#ffa657">esp_err_t</span> <span style="color:#d2a8ff">mock_nvs_init</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ff7b72">return</span> ESP_OK;
+}
+<span style="color:#ff7b72">static</span> <span style="color:#ffa657">esp_err_t</span> <span style="color:#d2a8ff">mock_wifi_ok</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ff7b72">return</span> ESP_OK;
+}
+
+<span style="color:#8b949e">// _fp symbols already declared via fakes headers</span>
+<span style="color:#ffa657">void</span> <span style="color:#d2a8ff">test_start_success</span>(<span style="color:#ffa657">void</span>) {
+    nvs_flash_init_fp = mock_nvs_init;
+    esp_wifi_start_fp = mock_wifi_ok;
+    <span style="color:#d2a8ff">assert</span>(wifi_manager_start() == WIFI_MGR_OK);
+}</code></pre>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Footer ──────────────────────────────────── -->
+  <footer>
+    <div class="container">
+      <p>
+        <a href="https://github.com/your-org/mockware">GitHub</a>
+        &middot;
+        <a href="https://github.com/your-org/mockware/issues">Issues</a>
+        &middot;
+        MIT License
+      </p>
+      <p style="margin-top:0.3rem;">&copy; 2026 mockware contributors</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
