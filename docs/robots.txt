@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ronika-co.github.io/Mockware/sitemap.xml

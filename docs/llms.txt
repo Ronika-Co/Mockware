@@ -1,0 +1,28 @@
+# mockware
+
+> Generate mock/stub SDK layers for embedded unit testing.
+
+mockware parses real embedded SDK headers (ESP-IDF, etc.) into a reusable
+YAML knowledge base, then generates stub header files with function-pointer
+overrides for every API the project uses.
+
+## CLI
+
+- `mockware parse $IDF_PATH -o known_apis.yml` — build YAML knowledge base
+- `mockware generate --project . --input known_apis.yml --output mock-sdk` — generate stubs
+
+## Key pattern
+
+Each generated function `esp_wifi_start` has:
+
+- `esp_wifi_start_default()` — default impl returning ESP_OK
+- `esp_wifi_start_fp` — overridable function pointer (extern in `*_fakes.h`)
+- `esp_wifi_start()` — delegates to `_fp`
+
+In tests, include `esp_wifi_fakes.h` or `nvs_flash_fakes.h` to get extern
+`_fp` declarations instead of hand-writing them.
+
+## Repository
+
+- https://github.com/Ronika-Co/Mockware
+- https://ronika-co.github.io/Mockware/
