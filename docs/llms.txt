@@ -1,26 +1,111 @@
 # mockware
 
-> Generate mock/stub SDK layers for embedded unit testing.
+Generate mock/stub SDK layers for embedded unit testing.
+Scans project source → auto-detects missing external SDK headers
+from #include directives → generates stub headers with
+function-pointer overrides for test-time replacement.
 
-mockware parses real embedded SDK headers (ESP-IDF, etc.) into a reusable
-YAML knowledge base, then generates stub header files with function-pointer
-overrides for every API the project uses.
+## CLI reference
 
-## CLI
+### `mockware scan <project_path>`
 
-- `mockware parse $IDF_PATH -o known_apis.yml` — build YAML knowledge base
-- `mockware generate --project . --input known_apis.yml --output mock-sdk` — generate stubs
+Auto-detect missing external SDK dependencies.
 
-## Key pattern
+```
+  -o, --output FILE             Output YAML path (default: missing_apis.yml)
+  --mode [full|partial]         full=scratch, partial=merge (default: partial)
+  --existing FILE               Existing YAML to merge into (for --mode partial)
+  -I, --include-dir DIR         Extra include-search directories
+  --include PATTERN             Source glob patterns (repeatable)
+  --exclude PATTERN             Exclude glob patterns (repeatable)
+  -v, --verbose                 Verbose output
+```
 
-Each generated function `esp_wifi_start` has:
+Produces 6-section YAML: headers, types, macros, enums, structs, functions.
+Project-internal symbols are auto-filtered via scan_project_symbols().
+Use --exclude to skip generated SDK dirs (mock-sdk/**).
 
-- `esp_wifi_start_default()` — default impl returning ESP_OK
-- `esp_wifi_start_fp` — overridable function pointer (extern in `*_fakes.h`)
-- `esp_wifi_start()` — delegates to `_fp`
+### `mockware parse <project_path>`
 
-In tests, include `esp_wifi_fakes.h` or `nvs_flash_fakes.h` to get extern
-`_fp` declarations instead of hand-writing them.
+Alias for `scan` — identical behaviour.
+
+### `mockware generate`
+
+Generate mock SDK stubs from a YAML knowledge base.
+
+```
+  -p, --project DIR   Root of project source tree (required)
+  -i, --input FILE    YAML input from scan/parse (required)
+  -o, --output DIR    Output directory for mock SDK tree (required)
+  --custom-impl DIR   User-provided .c implementation overrides
+  -v, --verbose       Verbose output
+```
+
+## YAML format
+
+```yaml
+headers:       {path: {includes: [dependency, ...]}}
+types:         {name: underlying_type_string}
+macros:        {name: value_string}
+               # value starting with '(' → function-like (no space in #define)
+enums:         {name: {values: {member: int_or_str, ...}}}
+structs:       {name: {definition: "typedef struct { ... } name;"}}
+functions:     {name: {return:, params: [typed_param, ...],
+                       header:, body:, kind:}}
+```
+
+Function fields: return (default void), params (list with types),
+header (path for attribution → source/<path>.c; missing → general.c),
+body (custom stub body), kind ("inline" for static inline).
+
+## Generated tree
+
+```
+output/
+├── CMakeLists.txt          → builds as mock_sdk
+├── include/
+│   ├── <header>.h          → per-header stub (defs + function decls)
+│   └── mockware/
+│       ├── types.h         → typedefs + auto-detected std includes
+│       ├── macros.h        → #define macros
+│       ├── enums.h         → enum defs
+│       ├── structs.h       → struct defs
+│       └── fakes.h         → extern function-pointer declarations
+└── source/
+    ├── <header>.c          → per-header impl
+    └── general.c           → untagged function impls
+```
+
+## Key patterns
+
+### Function-pointer override
+
+Each generated function `foo`:
+- `foo_default()` — default impl (return 0/NULL/empty)
+- `foo_mock` — overridable function pointer
+- `foo()` — delegates to `_mock`
+
+Tests include `mockware/fakes.h` to get `extern` `_mock` declarations.
+
+### Function-like macros
+
+YAML `MACRO: (x) value` → `#define MACRO(x) value` (no space).
+Standard for FreeRTOS-style macros like `pdMS_TO_TICKS`.
+
+### Standard type includes
+
+Generator scans YAML for uint64_t, size_t, bool, FILE, etc. and
+auto-adds #include <stdint.h>, <stddef.h>, etc. to mockware/types.h.
+
+### Merge workflow
+
+```bash
+mockware scan . -o apis.yml                     # first scan
+# edit apis.yml ...
+mockware scan . --existing apis.yml --mode partial \  # re-scan merges
+    --exclude "mock-sdk/**"
+mockware generate --project . -i apis.yml -o mock-sdk  # regenerate
+```
 
 ## Repository
 

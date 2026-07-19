@@ -1,0 +1,40 @@
+headers:
+  esp_err.h:
+    includes: []
+  esp_wifi.h:
+    includes: []
+  freertos/Freertos.h:
+    includes: []
+  nvs_flash.h:
+    includes: []
+
+types:
+  esp_err_t: int
+
+macros:
+  ESP_FAIL: '1'
+  ESP_OK: '0'
+  pdMS_TO_TICK: (x) ((uint64_t)x)
+
+enums: {}
+
+structs: {}
+
+functions:
+  esp_wifi_start:
+    return: int
+    params: []
+    header: esp_wifi.h
+  esp_wifi_stop:
+    return: int
+    params: []
+    header: esp_wifi.h
+  nvs_flash_init:
+    return: int
+    params: []
+    header: nvs_flash.h
+  vTaskDelay:
+    return: int
+    params:
+    - bool arg
+    header: freertos/Freertos.h

@@ -8,10 +8,11 @@ add_subdirectory(mock-sdk)
 add_library(app STATIC
     main/wifi_manager.c
 )
-target_include_directories(app PUBLIC main)
+target_include_directories(app PUBLIC main mock-sdk/include)
 
 # Test executable
 add_executable(test_runner
     test/test_wifi_manager.c
 )
+target_include_directories(test_runner PRIVATE mock-sdk/include)
 target_link_libraries(test_runner PRIVATE app mock_sdk)

@@ -1,401 +1,450 @@
 from __future__ import annotations
 
-import subprocess
+import re
 from pathlib import Path
 
 import click
-import pycparser
-from pycparser import c_ast
+
+_C_KEYWORDS = {
+    "if", "while", "for", "switch", "case", "return", "sizeof",
+    "int", "void", "char", "float", "double", "long", "short",
+    "unsigned", "signed", "const", "static", "extern", "volatile",
+    "struct", "union", "enum", "typedef", "auto", "register",
+    "goto", "break", "continue", "default", "do", "else",
+    "_Bool", "_Complex", "_Imaginary", "inline", "restrict",
+}
+
+_C_BUILTIN_TYPES = {
+    "int", "void", "char", "float", "double", "long", "short",
+    "return", "typedef", "unsigned", "signed", "size_t", "ssize_t", "ptrdiff_t",
+    "int8_t", "int16_t", "int32_t", "int64_t",
+    "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+    "uintptr_t", "intptr_t", "wchar_t", "bool", "_Bool",
+    "FILE", "va_list", "off_t", "time_t", "clock_t",
+    "int_least8_t", "int_least16_t", "int_least32_t", "int_least64_t",
+    "uint_least8_t", "uint_least16_t", "uint_least32_t", "uint_least64_t",
+    "int_fast8_t", "int_fast16_t", "int_fast32_t", "int_fast64_t",
+    "uint_fast8_t", "uint_fast16_t", "uint_fast32_t", "uint_fast64_t",
+    "intmax_t", "uintmax_t", "float32_t", "float64_t",
+}
 
 
-def parse_headers(
-    idf_path: str,
-    headers: dict[str, list[str]],
-    extra_includes: list[str],
-    verbose: bool,
-) -> dict[str, dict]:
-    """Parse each header with pycparser and return structured YAML data."""
-    comp_dir = Path(idf_path) / "components"
-    inc_dirs = _all_include_dirs(idf_path, extra_includes)
-    fake_dir = _find_fake_libc()
+def infer_missing_apis(
+    source_path: str,
+    missing_headers: dict[str, dict],
+    source_file: str | None = None,
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    verbose: bool = False,
+) -> dict:
+    """Infer function signatures, types, macros, enums and structs.
 
-    result: dict[str, dict] = {}
+    Analysis is global — extracted symbols are not assigned to individual
+    headers.  Functions are tagged with a ``header`` field when naming
+    convention provides a plausible match; otherwise they go to
+    ``general.c``.
 
-    for comp_name, rels in headers.items():
-        for rel in rels:
-            hdr_path = comp_dir / comp_name / "include" / rel
-            hdr_key = _header_key(comp_name, rel)
+    Returns a dict with keys:
+      headers, types, macros, enums, structs, functions
+    """
+    from .source_scanner import scan_project_symbols
 
+    if include_patterns is None:
+        include_patterns = ["**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp",
+                            "**/*.cc", "**/*.cxx"]
+    if exclude_patterns is None:
+        exclude_patterns = []
+
+    # Learn what's defined inside the project so we can exclude it
+    project_syms = scan_project_symbols(source_path, exclude_patterns)
+    project_types = project_syms["types"]
+    project_funcs = project_syms["functions"]
+
+    src = Path(source_path)
+
+    # Build a list of source files to analyse
+    if source_file:
+        src_files = [src / source_file]
+    else:
+        src_files = _collect_source_files(
+            source_path, include_patterns, exclude_patterns
+        )
+
+    # Per-file: collect function calls, type refs, macro candidates
+    all_functions: dict[str, tuple[int, str]] = {}    # name → (argc, raw_args)
+    all_types: set[str] = set()
+    all_enums: dict[str, dict] = {}
+    all_structs: dict[str, str] = {}
+    all_macros: set[str] = set()
+
+    # Pre-read all source texts for two-pass analysis
+    file_texts: dict[Path, str] = {}
+    for fpath in src_files:
+        try:
+            text = fpath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        file_texts[fpath] = _strip_comments(text)
+
+    # Pass 1: extract functions, types, enums, structs
+    enum_values: set[str] = set()
+
+    for fpath, text in file_texts.items():
+        for name, argc, raw in _extract_function_calls(text):
+            if name not in all_functions and name not in project_funcs:
+                all_functions[name] = (argc, raw)
+
+        for t in _extract_type_refs(text, project_types):
+            all_types.add(t)
+
+        name_vals = _extract_enums(text)
+        for ename, ebody in name_vals.items():
+            if ename in project_types:
+                for vname in ebody.get("values", {}):
+                    enum_values.add(vname)
+                continue
+            if ename not in all_enums:
+                all_enums[ename] = ebody
+                for vname in ebody.get("values", {}):
+                    enum_values.add(vname)
+
+        name_def = _extract_structs(text)
+        for sname, sdef in name_def.items():
+            if sname in project_types or f"struct {sname}" in project_types:
+                continue
+            if sname not in all_structs:
+                all_structs[sname] = sdef
+
+    # Pass 2: extract macro candidates with enum values known
+    for fpath, text in file_texts.items():
+        all_macros.update(_extract_macro_candidates(text, enum_values))
+
+    # Build header stems for naming-convention matching
+    hdr_stems: dict[str, str] = {}
+    for hdr in missing_headers:
+        stem = Path(hdr).stem
+        hdr_stems[hdr] = stem
+
+    # Match functions to headers by naming convention
+    funcs_with_header: dict[str, dict] = {}
+    funcs_no_header: dict[str, dict] = {}
+
+    for fname, (argc, raw_args) in sorted(all_functions.items()):
+        params = _build_params(argc)
+        entry = {"return": "int", "params": params}
+        matched = False
+        for hdr, stem in hdr_stems.items():
+            if _matches_header(fname, stem):
+                entry["header"] = hdr
+                matched = True
+                break
+        if matched:
+            funcs_with_header[fname] = entry
             if verbose:
-                click.echo(f"  parsing {rel}…")
+                click.echo(f"    function: {fname} → {entry['header']}")
+        else:
+            funcs_no_header[fname] = entry
+            if verbose:
+                click.echo(f"    function: {fname} → *general*")
 
-            preprocessed = _preprocess(hdr_path, inc_dirs, fake_dir, extra_includes)
-            if preprocessed is None:
-                if verbose:
-                    click.echo("    └─ preprocessor failed, skipping")
-                result.setdefault(hdr_key, _empty_entry())
-                continue
+    # Build type entry
+    types_out: dict[str, str] = {}
+    for tname in sorted(all_types):
+        if tname in _C_BUILTIN_TYPES or tname in project_types:
+            continue
+        types_out[tname] = "int"
+        if verbose:
+            click.echo(f"    type: {tname} → int")
 
-            parsed = _parse(preprocessed, hdr_path)
-            if parsed is None:
-                if verbose:
-                    click.echo("    └─ pycparser failed, skipping")
-                result.setdefault(hdr_key, _empty_entry())
-                continue
+    # Build macro entry (ALL_CAPS → value "0" as placeholder)
+    macros_out: dict[str, str] = {}
+    for mname in sorted(all_macros):
+        if mname in project_types:
+            continue
+        macros_out[mname] = "0"
+        if verbose:
+            click.echo(f"    macro: {mname} → 0")
 
-            data = _extract(parsed, hdr_path)
-            result[hdr_key] = data
+    # Build result
+    result = {
+        "headers": dict(missing_headers),
+        "types": types_out,
+        "macros": macros_out,
+        "enums": all_enums,
+        "structs": all_structs,
+        "functions": {**funcs_with_header, **funcs_no_header},
+    }
 
     return result
 
 
-# ── Header key ──────────────────────────────────────────────────────────
+def _strip_comments(text: str) -> str:
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    text = re.sub(r'//.*', '', text)
+    return text
 
 
-def _header_key(comp_name: str, rel: str) -> str:
-    if rel.startswith(comp_name):
-        return rel
-    return f"{comp_name}/{rel}"
+def _extract_function_calls(text: str) -> list[tuple[str, int, str]]:
+    """Return ``[(name, arg_count, raw_args), ...]``."""
+    results: list[tuple[str, int, str]] = []
+    i = 0
+    length = len(text)
+
+    while i < length:
+        if text[i] in ('"', "'"):
+            quote = text[i]
+            i += 1
+            while i < length and text[i] != quote:
+                if text[i] == '\\':
+                    i += 1
+                i += 1
+            i += 1
+            continue
+
+        if not (text[i].isalpha() or text[i] == '_'):
+            i += 1
+            continue
+
+        j = i
+        while j < length and (text[j].isalnum() or text[j] == '_'):
+            j += 1
+        ident = text[i:j]
+
+        k = j
+        while k < length and text[k] in (' ', '\t', '\n'):
+            k += 1
+        if k >= length or text[k] != '(':
+            i = j
+            continue
+
+        if ident in _C_KEYWORDS or ident in _C_BUILTIN_TYPES:
+            i = k + 1
+            continue
+
+        depth = 1
+        pos = k + 1
+        while pos < length and depth > 0:
+            ch = text[pos]
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif ch in ('"', "'"):
+                q = ch
+                pos += 1
+                while pos < length and text[pos] != q:
+                    if text[pos] == '\\':
+                        pos += 1
+                    pos += 1
+            pos += 1
+
+        if depth == 0:
+            args_text = text[k + 1:pos - 1].strip()
+            argc = _count_top_level_commas(args_text)
+            results.append((ident, argc, args_text))
+
+        i = pos
+
+    return results
 
 
-def _empty_entry() -> dict:
-    return {"includes": [], "macros": {}, "types": {},
-            "enums": {}, "structs": {}, "functions": {}}
+def _count_top_level_commas(text: str) -> int:
+    if not text or text == "void":
+        return 0
+    depth = 0
+    count = 0
+    for ch in text:
+        if ch in ('(', '[', '{'):
+            depth += 1
+        elif ch in (')', ']', '}'):
+            depth -= 1
+        elif ch == ',' and depth == 0:
+            count += 1
+    return count + 1
 
 
-# ── Include dirs ────────────────────────────────────────────────────────
+def _build_params(argc: int) -> list[str]:
+    if argc == 0:
+        return []
+    if argc == 1:
+        return ["void* arg"]
+    return [f"void* arg{i}" for i in range(argc)]
 
 
-def _all_include_dirs(idf_path: str, extra: list[str]) -> list[str]:
-    dirs = list(extra)
-    comp_dir = Path(idf_path) / "components"
-    if comp_dir.is_dir():
-        for child in sorted(comp_dir.iterdir()):
-            inc = child / "include"
-            if inc.is_dir():
-                dirs.append(str(inc))
-    return dirs
+def _matches_header(name: str, header_stem: str) -> bool:
+    if not header_stem:
+        return False
+    prefix = header_stem + "_"
+    if name.startswith(prefix):
+        return True
+    if name.startswith(header_stem):
+        rest = name[len(header_stem):]
+        if rest and rest[0] in ("_",):
+            return True
+    return False
 
 
-def _find_fake_libc() -> str | None:
-    """Locate pycparser's ``utils/fake_libc_include`` directory."""
-    pkg_dir = Path(pycparser.__file__).parent
-    candidates = [
-        pkg_dir / "utils" / "fake_libc_include",
-        pkg_dir.parent / "utils" / "fake_libc_include",
-    ]
-    for c in candidates:
-        if c.is_dir():
-            return str(c)
-    return None
+# ── Type reference extraction ─────────────────────────────────────────
+
+_TYPE_DECL_RE = re.compile(
+    r'(?:^|\n|;|{|})\s*'
+    r'(?:const\s+|volatile\s+|static\s+|extern\s+)?'
+    r'([a-zA-Z_]\w*(?:\s*const)?)'
+    r'(?:\s+|\s*\*\s*|\s+[*]+\s+)'
+    r'([a-zA-Z_]\w*)'
+    r'\s*(?:\[|=|;|\(|{)'
+)
+
+_CAST_RE = re.compile(
+    r'\(([a-zA-Z_]\w*(?:\s*\*)*)\)\s*(?:[a-zA-Z_]|&|\*|~|!|\d)'
+)
+
+_FUNC_RET_RE = re.compile(
+    r'(?:^|\n|;|{|})\s*'
+    r'(?:const\s+|volatile\s+|static\s+|extern\s+)?'
+    r'([a-zA-Z_]\w*)'
+    r'\s+'
+    r'([a-zA-Z_]\w*)'
+    r'\s*\('
+)
 
 
-# ── Preprocessing ───────────────────────────────────────────────────────
+def _extract_type_refs(text: str, project_types: set[str]) -> set[str]:
+    types: set[str] = set()
+
+    for m in _TYPE_DECL_RE.finditer(text):
+        tname = m.group(1).strip()
+        if tname not in _C_BUILTIN_TYPES and not tname.startswith("//"):
+            if tname not in project_types:
+                types.add(tname)
+
+    for m in _CAST_RE.finditer(text):
+        tname = m.group(1).strip().rstrip('*').strip()
+        if tname and tname not in _C_BUILTIN_TYPES:
+            if tname not in project_types:
+                types.add(tname)
+
+    for m in _FUNC_RET_RE.finditer(text):
+        tname = m.group(1).strip()
+        fname = m.group(2).strip()
+        if (tname not in _C_BUILTIN_TYPES
+                and fname not in _C_KEYWORDS):
+            if tname not in project_types:
+                types.add(tname)
+
+    return types
 
 
-# GCC builtins / attributes we want to strip so pycparser can handle them.
-_STRIP_DEFINES = [
-    "-D__attribute__(x)=",
-    "-D__attribute(x)=",
-    "-D__asm__(x)=",
-    "-D__asm(x)=",
-    "-D__inline__=",
-    "-D__inline=",
-    "-D__restrict=",
-    "-D__restrict__=",
-    "-D__volatile__=",
-    "-D__volatile=",
-    "-D__extension__=",
-    "-D__builtin_va_list=void*",
-    "-D__int128=long long",
-    "-D__int128_t=long long",
-    "-D__uint128_t=\"unsigned long long\"",
-    "-D__builtin_offsetof(t,m)=((size_t)&((t*)0)->m)",
-    "-D__builtin_va_arg(a,t)=((t)a)",
-    "-D__builtin_va_start(a,v)=((void)0)",
-    "-D__builtin_va_end(a)=((void)0)",
-    "-D__builtin_va_copy(d,s)=((void)(d=s))",
-    # ESP-IDF specific
-    "-DIRAM_ATTR=",
-    "-DIRAM_DATA_ATTR=",
-    "-DIROM_ATTR=",
-    "-DTCM_ATTR=",
-    "-DNOINLINE_ATTR=",
-    "-DWARN_UNUSED_RET_ATTR=",
-]
+# ── Macro candidate extraction ────────────────────────────────────────
+
+_MACRO_RE = re.compile(
+    r'(?:\b|\s)(\w{3,})\b'
+)
 
 
-def _preprocess(
-    hdr_path: Path,
-    inc_dirs: list[str],
-    fake_dir: str | None,
-    extra_includes: list[str],
-) -> str | None:
-    """Run ``gcc -E`` and return preprocessed C code."""
-    try:
-        cmd = ["gcc", "-E", "-x", "c", "-std=c11"]
-        # Strip GCC extensions
-        cmd.extend(_STRIP_DEFINES)
-        # User-provided include dirs
-        for d in inc_dirs:
-            cmd.extend(["-I", d])
-        # pycparser fake libc
-        if fake_dir:
-            cmd.extend(["-I", fake_dir])
-        # Include path for the header itself
-        cmd.extend(["-I", str(hdr_path.parent)])
-        cmd.append(str(hdr_path))
+def _extract_macro_candidates(text: str,
+                               exclude: set[str] | None = None) -> set[str]:
+    """Return set of macro-like identifiers.
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            return None
-        return result.stdout
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
+    An identifier is considered macro-like if it is:
+      * all-uppercase (e.g. ``ESP_OK``), OR
+      * contains at least one underscore AND at least two
+        uppercase letters (e.g. ``pdMS_TO_TICKS``).
+    """
+    if exclude is None:
+        exclude = set()
+    candidates: set[str] = set()
+    for m in _MACRO_RE.finditer(text):
+        name = m.group(1)
+        if name in _C_KEYWORDS or name in _C_BUILTIN_TYPES:
+            continue
+        if name in exclude:
+            continue
+        if name.endswith("_t"):
+            continue
+        if name.isupper():
+            candidates.add(name)
+        elif "_" in name and sum(1 for c in name if c.isupper()) >= 2:
+            candidates.add(name)
+    return candidates
 
 
-# ── pycparser parse ─────────────────────────────────────────────────────
+# ── Enum extraction ───────────────────────────────────────────────────
+
+_ENUM_RE = re.compile(
+    r'typedef\s+enum\s*\{'
+    r'([^}]*)\}'
+    r'\s*(\w+)\s*;'
+)
+
+_ENUM_VALUE_RE = re.compile(
+    r'(\w+)\s*(?:=\s*([^,}]+))?'
+)
 
 
-def _parse(preprocessed: str, hdr_path: Path) -> c_ast.FileAST | None:
-    """Feed preprocessed C into pycparser and return the AST."""
-    try:
-        return pycparser.parse(preprocessed, filename=str(hdr_path),
-                               use_cpp=False)
-    except Exception:
-        return None
-
-
-# ── AST walker ──────────────────────────────────────────────────────────
-
-
-class _Extractor(c_ast.NodeVisitor):
-    """Walks the AST and collects types, enums, structs, functions."""
-
-    def __init__(self, hdr_path: Path) -> None:
-        self.hdr_path = hdr_path
-        self.hdr_text = hdr_path.read_text(encoding="utf-8", errors="replace")
-        self.includes: list[str] = []
-        self.types: dict[str, str] = {}
-        self.enums: dict[str, dict] = {}
-        self.structs: dict[str, dict] = {}
-        self.functions: dict[str, dict] = {}
-        self._seen_funcs: set[str] = set()
-
-    def visit_Typedef(self, node: c_ast.Typedef) -> None:
-        name = node.name
-        underlying = node.type.type  # TypeDecl → actual type
-
-        if isinstance(underlying, c_ast.Struct):
-            struct = underlying
-            if struct.name:
-                sname = struct.name
+def _extract_enums(text: str) -> dict[str, dict]:
+    """Return ``{enum_name: {"values": {val_name: val, ...}}}``."""
+    result: dict[str, dict] = {}
+    for m in _ENUM_RE.finditer(text):
+        body = m.group(1)
+        ename = m.group(2)
+        values: dict[str, str | int] = {}
+        for vm in _ENUM_VALUE_RE.finditer(body):
+            vname = vm.group(1)
+            vval = vm.group(2)
+            if vval:
+                try:
+                    values[vname] = int(vval)
+                except ValueError:
+                    values[vname] = vval.strip()
             else:
-                sname = name
-            raw = self._extract_struct_raw(node)
-            if raw:
-                self.structs[sname] = {"definition": raw}
-            self.types[name] = f"struct {sname}"
-            # Also extract members from decls
-            if struct.decls:
-                members = []
-                for m in struct.decls:
-                    mname = m.name
-                    mtype = self._type_str(m.type)
-                    members.append({"name": mname, "type": mtype})
-                if members:
-                    if sname not in self.structs:
-                        self.structs[sname] = {}
-                    self.structs[sname]["members"] = members
-
-        elif isinstance(underlying, c_ast.Enum):
-            enum = underlying
-            ename = enum.name or name
-            if enum.values:
-                vals: dict[str, str | int] = {}
-                for v in enum.values:
-                    if v.value:
-                        vals[v.name] = v.value.value
-                    else:
-                        vals[v.name] = "/* auto */"
-                self.enums[ename] = {"values": vals}
-            self.types[name] = f"enum {ename}"
-
-        elif isinstance(underlying, c_ast.Union):
-            self.types[name] = f"union {underlying.name or name}"
-
-        else:
-            tstr = self._type_str(underlying)
-            self.types[name] = tstr
-
-    def visit_FuncDef(self, node: c_ast.FuncDef) -> None:
-        """Handle function *definitions* (with body) — typically inline functions."""
-        fname = node.decl.name
-        if fname in self._seen_funcs:
-            return
-        self._seen_funcs.add(fname)
-
-        ret_type = self._type_str(node.decl.type.type)
-        params = []
-        if node.decl.type.args:
-            for p in node.decl.type.args.params:
-                pname = p.name or ""
-                ptype = self._type_str(p.type)
-                params.append(f"{ptype} {pname}".strip())
-
-        body = self._extract_inline_body(node)
-        self.functions[fname] = {
-            "kind": "inline",
-            "return": ret_type,
-            "params": params,
-            "body": body,
-        }
-
-    def visit_Decl(self, node: c_ast.Decl) -> None:
-        # Top-level function declarations
-        if isinstance(node.type, c_ast.FuncDecl):
-            fname = node.name
-            if fname in self._seen_funcs:
-                return
-            self._seen_funcs.add(fname)
-
-            ret_type = self._type_str(node.type.type)
-            params = []
-            if node.type.args:
-                for p in node.type.args.params:
-                    pname = p.name or ""
-                    ptype = self._type_str(p.type)
-                    params.append(f"{ptype} {pname}".strip())
-
-            self.functions[fname] = {
-                "return": ret_type,
-                "params": params,
-            }
-
-        # Top-level struct/union/enum declarations
-        if isinstance(node.type, c_ast.Struct):
-            struct = node.type
-            if struct.name:
-                raw = self._extract_struct_raw(node)
-                if raw:
-                    self.structs[struct.name] = {"definition": raw}
-        elif isinstance(node.type, c_ast.Union):
-            pass
-        elif isinstance(node.type, c_ast.Enum):
-            enum = node.type
-            if enum.name and enum.values:
-                vals = {}
-                for v in enum.values:
-                    vals[v.name] = v.value.value if v.value else "/* auto */"
-                self.enums[enum.name] = {"values": vals}
-
-    def _type_str(self, node: c_ast.Node) -> str:
-        """Convert a pycparser type node to a C type string."""
-        if isinstance(node, c_ast.TypeDecl):
-            # qualifiers like const, volatile, etc.
-            quals = " ".join(node.quals) if node.quals else ""
-            base = self._identifier_str(node.type)
-            if quals:
-                return f"{quals} {base}".strip()
-            return base
-        elif isinstance(node, c_ast.PtrDecl):
-            points_to = self._type_str(node.type)
-            return f"{points_to}*"
-        elif isinstance(node, c_ast.ArrayDecl):
-            elem = self._type_str(node.type)
-            dim = node.dim.value if node.dim else ""
-            return f"{elem}[{dim}]"
-        elif isinstance(node, c_ast.FuncDecl):
-            ret = self._type_str(node.type)
-            return f"{ret} (*)(...)"
-        elif isinstance(node, c_ast.Struct):
-            return f"struct {node.name or '{{...}}'}"
-        elif isinstance(node, c_ast.Union):
-            return f"union {node.name or '{{...}}'}"
-        elif isinstance(node, c_ast.Enum):
-            return f"enum {node.name or '{{...}}'}"
-        elif isinstance(node, c_ast.IdentifierType):
-            return " ".join(node.names)
-        elif isinstance(node, c_ast.Typedef):
-            return node.name
-        elif isinstance(node, c_ast.TypeDecl):
-            quals = " ".join(node.quals) if node.quals else ""
-            base = self._type_str(node.type)
-            return f"{quals} {base}".strip()
-        return str(type(node).__name__)
-
-    def _identifier_str(self, node: c_ast.Node) -> str:
-        if isinstance(node, c_ast.IdentifierType):
-            return " ".join(node.names)
-        return self._type_str(node)
-
-    def _extract_struct_raw(self, node: c_ast.Node) -> str | None:
-        """Extract the raw ``typedef struct { ... } name;`` from source."""
-        try:
-            start = node.coord.line
-        except AttributeError:
-            return None
-
-        # Walk the header text from the start line to find matching braces
-        lines = self.hdr_text.splitlines()
-        if start < 1 or start > len(lines):
-            return None
-
-        depth = 0
-        started = False
-        collected: list[str] = []
-        for i, line in enumerate(lines[start - 1:], start=start):
-            stripped = line
-            for ch in stripped:
-                if ch == '{':
-                    depth += 1
-                    started = True
-                elif ch == '}':
-                    depth -= 1
-            collected.append(stripped)
-            if started and depth == 0:
-                break
-
-        raw = "\n".join(collected).strip()
-        return raw if raw else None
-
-    def _extract_inline_body(self, node: c_ast.FuncDef) -> str:
-        """Extract the full inline function definition from source text."""
-        try:
-            start = node.coord.line
-        except AttributeError:
-            return ""
-        # Walk up to the closing brace
-        lines = self.hdr_text.splitlines()
-        if start < 1 or start > len(lines):
-            return ""
-        depth = 0
-        started = False
-        collected: list[str] = []
-        for i, line in enumerate(lines[start - 1:], start=start):
-            stripped = line
-            for ch in stripped:
-                if ch == '{':
-                    depth += 1
-                    started = True
-                elif ch == '}':
-                    depth -= 1
-            collected.append(stripped)
-            if started and depth == 0:
-                break
-        return "\n".join(collected)
+                values[vname] = -1 if not values else max(
+                    v for v in values.values() if isinstance(v, int)
+                ) + 1 if values else 0
+        result[ename] = {"values": values}
+    return result
 
 
-def _extract(ast: c_ast.FileAST, hdr_path: Path) -> dict:
-    """Run the extractor and return the data dict for one header."""
-    ext = _Extractor(hdr_path)
-    ext.visit(ast)
+# ── Struct extraction ─────────────────────────────────────────────────
 
-    return {
-        "includes": ext.includes,
-        "macros": {},
-        "types": ext.types,
-        "enums": ext.enums,
-        "structs": ext.structs,
-        "functions": ext.functions,
-    }
+_STRUCT_RE = re.compile(
+    r'struct\s+(\w+)\s*\{'
+    r'([^}]*)\}'
+    r'\s*(\w+)?\s*;'
+)
+
+
+def _extract_structs(text: str) -> dict[str, str]:
+    """Return ``{struct_name: "struct … { … };"}``."""
+    result: dict[str, str] = {}
+    for m in _STRUCT_RE.finditer(text):
+        sname = m.group(3) if m.group(3) else m.group(1)
+        definition = m.group(0)
+        result[sname] = definition
+    return result
+
+
+# ── Source file collection ────────────────────────────────────────────
+
+
+def _collect_source_files(
+    source_path: str,
+    include_patterns: list[str],
+    exclude_patterns: list[str],
+) -> list[Path]:
+    from fnmatch import fnmatch
+
+    def _is_excluded(rel: str) -> bool:
+        return any(fnmatch(rel, pat) for pat in exclude_patterns)
+
+    src = Path(source_path)
+    files: list[Path] = []
+    for pattern in include_patterns:
+        for fpath in sorted(src.rglob(pattern)):
+            if not fpath.is_file():
+                continue
+            rel = str(fpath.relative_to(src))
+            if _is_excluded(rel):
+                continue
+            files.append(fpath)
+    return files

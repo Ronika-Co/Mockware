@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mockware — Generate mock SDK layers for embedded testing</title>
-  <meta name="description" content="Parse real embedded SDK headers into a YAML knowledge base and generate stub headers with overridable function pointers for unit testing.">
+  <meta name="description" content="Scan your project source, auto-detect missing external SDK dependencies, and generate stub headers with function-pointer overrides for unit testing.">
   <meta name="google-site-verification" content="RLvK6p7sDv1IofFDZbrskPHNYd5kCn-mb_CLmLei02Y" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,6 @@
 </head>
 <body>
 
-  <!-- ─── Nav ─────────────────────────────────────── -->
   <nav>
     <div class="container">
       <a href="#" class="logo"><span>mock</span>ware</a>
@@ -22,20 +21,20 @@
         <li><a href="#how">How it works</a></li>
         <li><a href="#features">Features</a></li>
         <li><a href="#start">Quick start</a></li>
+        <li><a href="#yaml">YAML format</a></li>
         <li><a href="#test">Testing</a></li>
         <li><button id="theme-toggle" aria-label="Toggle theme">🌙</button></li>
       </ul>
     </div>
   </nav>
 
-  <!-- ─── Hero ────────────────────────────────────── -->
   <header class="hero">
     <div class="container">
       <h1><span>mock</span>ware</h1>
       <p class="tagline">
         Generate mock SDK layers for embedded unit testing &mdash;
-        parse real SDK headers, generate stub implementations, and
-        override any function at test time.
+        auto-detect missing external SDK dependencies, generate stub
+        implementations, and override any function at test time.
       </p>
       <div class="buttons">
         <a href="#start" class="btn btn-primary">Get started &rarr;</a>
@@ -47,13 +46,13 @@
           <span></span><span></span><span></span>
           <span class="title">bash</span>
         </div>
-        <pre><code><span style="color:#8b949e"># Phase 1: Parse SDK headers into a knowledge base</span>
-<span style="color:#3fb950">$</span> mockware parse <span style="color:#79c0ff">$IDF_PATH</span> -o known_apis.yml
+        <pre><code><span style="color:#8b949e"># Phase 1: Auto-detect missing external dependencies</span>
+<span style="color:#3fb950">$</span> mockware scan <span style="color:#79c0ff">.</span> -o missing_apis.yml
 
 <span style="color:#8b949e"># Phase 2: Generate mock SDK for your project</span>
 <span style="color:#3fb950">$</span> mockware generate \
     --project <span style="color:#79c0ff">.</span> \
-    --input known_apis.yml \
+    --input missing_apis.yml \
     --output mock-sdk
 
 <span style="color:#8b949e"># Phase 3: Build and run tests</span>
@@ -64,25 +63,24 @@
     </div>
   </header>
 
-  <!-- ─── How it works ────────────────────────────── -->
   <section id="how">
     <div class="container">
       <div class="section-title">
         <h2>How it works</h2>
-        <p>Two-phase design keeps the knowledge base reusable across projects and configurations.</p>
+        <p>All definitions (types, macros, enums, structs) are global &mdash; no per-header attribution noise.</p>
       </div>
 
       <div class="diagram">
         <div class="diagram-row">
           <div class="diagram-box">
-            <div class="icon">📦</div>
-            <div class="label">SDK components/<br>headers</div>
+            <div class="icon">📁</div>
+            <div class="label">Your Project<br>source files (.c/.h)</div>
           </div>
           <span class="diagram-arrow">&rarr;</span>
-          <div class="diagram-box" style="min-width:180px">
+          <div class="diagram-box" style="min-width:200px">
             <div class="icon">📋</div>
-            <div><strong>known_apis.yml</strong></div>
-            <div class="label">Macros · Types · Enums · Structs · Functions</div>
+            <div><strong>missing_apis.yml</strong></div>
+            <div class="label">6 sections: headers, types,<br>macros, enums, structs, functions</div>
           </div>
           <span class="diagram-arrow">&larr;</span>
           <div class="diagram-box">
@@ -101,9 +99,9 @@
             <div class="icon">🧩</div>
             <div><strong>mock-sdk/</strong></div>
             <div class="label">
-              include/<br>
+              include/&lt;header&gt;.h + mockware/&lt;defs&gt;.h<br>
               source/ + function pointers<br>
-              CMakeLists.txt
+              auto stdint/stddef/bool includes
             </div>
           </div>
           <span class="diagram-arrow">&rarr;</span>
@@ -113,21 +111,19 @@
           </div>
         </div>
         <div class="sub">
-          <span>include/esp_err.h</span>
           <span>include/esp_wifi.h</span>
-          <span>include/nvs_flash.h</span>
-          <span>include/esp_err_fakes.h</span>
-          <span>include/esp_wifi_fakes.h</span>
-          <span>include/nvs_flash_fakes.h</span>
+          <span>include/freertos/Freertos.h</span>
+          <span>include/mockware/types.h</span>
+          <span>include/mockware/fakes.h</span>
           <span>source/esp_wifi.c</span>
-          <span>source/nvs_flash.c</span>
+          <span>source/general.c</span>
+          <span>source/freertos/Freertos.c</span>
           <span>CMakeLists.txt</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── Features ────────────────────────────────── -->
   <section id="features">
     <div class="container">
       <div class="section-title">
@@ -138,59 +134,59 @@
         <div class="feature-card">
           <div class="emoji">🎯</div>
           <h3>Function-pointer overrides</h3>
-          <p>Every stub exports a <code>_fp</code> pointer. Per-component <code>*_fakes.h</code> headers declare them as <code>extern</code>&mdash;just include and assign in tests.</p>
+          <p>Every stub exports a <code>_mock</code> pointer. The generated <code>mockware/fakes.h</code> declares them all as <code>extern</code>&mdash;just include and assign in tests.</p>
         </div>
         <div class="feature-card">
-          <div class="emoji">📂</div>
-          <h3>Mirrored include paths</h3>
-          <p>Generated headers preserve the SDK directory structure. <code>#include "driver/gpio.h"</code> just works.</p>
+          <div class="emoji">🔍</div>
+          <h3>Auto-detect missing deps</h3>
+          <p>Scans your source files for <code>#include</code> directives, finds which referenced headers don't exist in your project, and creates YAML entries automatically.</p>
+        </div>
+        <div class="feature-card">
+          <div class="emoji">🧠</div>
+          <h3>Inference from usage</h3>
+          <p>Function signatures, types, macros, enums, and structs are inferred from your code. All definitions are global &mdash; no attribution noise across headers.</p>
         </div>
         <div class="feature-card">
           <div class="emoji">🔁</div>
-          <h3>Reusable YAML base</h3>
-          <p>Parse once, generate many times. Share <code>known_apis.yml</code> across projects and CI runners.</p>
+          <h3>Non-destructive merging</h3>
+          <p>Use <code>--mode partial</code> to merge newly discovered deps into your existing YAML. Manual edits are never overwritten.</p>
         </div>
         <div class="feature-card">
           <div class="emoji">🧩</div>
-          <h3>Framework-agnostic</h3>
-          <p>Works with ESP-IDF today. Designed to support Zephyr, STM32 HAL, and any C/C++ embedded SDK.</p>
+          <h3>Function-like macros</h3>
+          <p>YAML values starting with <code>(</code> generate <code>#define NAME(value)</code> (no space). Supports FreeRTOS-style macros like <code>pdMS_TO_TICKS: (x) ((uint64_t)x)</code>.</p>
         </div>
         <div class="feature-card">
-          <div class="emoji">⚡</div>
-          <h3>Minimal runtime</h3>
-          <p>Function pointers add zero overhead in release builds. Swap them out freely in test builds.</p>
-        </div>
-        <div class="feature-card">
-          <div class="emoji">📝</div>
-          <h3>Auto-generated defaults</h3>
-          <p>Functions return sensible defaults (<code>ESP_OK</code>, <code>NULL</code>, <code>0</code>) based on return type. Override only what you need.</p>
+          <div class="emoji">📦</div>
+          <h3>Auto standard includes</h3>
+          <p>The generator scans for <code>uint64_t</code>, <code>size_t</code>, <code>bool</code>, <code>FILE</code> etc. and automatically adds <code>#include &lt;stdint.h&gt;</code>, <code>&lt;stddef.h&gt;</code>, etc. to <code>types.h</code>.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── Quick start ─────────────────────────────── -->
   <section id="start">
     <div class="container">
       <div class="section-title">
         <h2>Quick start</h2>
-        <p>Three commands to go from SDK headers to passing tests.</p>
+        <p>Three commands to go from project source to passing tests.</p>
       </div>
 
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Parse SDK headers</h3>
-            <p>Point <code>mockware parse</code> at your SDK installation. It scans every component and builds a complete YAML knowledge base of macros, types, enums, structs, and function declarations.</p>
+            <h3>Auto-detect missing dependencies</h3>
+            <p>Point <code>mockware scan</code> at your project. It scans source files for <code>#include</code> directives and finds headers that aren't in your project tree or include paths. The tool infers function signatures, types, macros, enums, and structs from usage context.</p>
             <div class="code-block">
-              <pre><code><span style="color:#8b949e"># Build the knowledge base</span>
-mockware parse <span style="color:#79c0ff">$IDF_PATH</span> -o known_apis.yml
+              <pre><code><span style="color:#8b949e"># Auto-detect missing external deps</span>
+mockware scan <span style="color:#79c0ff">/path/to/project</span> -o missing_apis.yml
 
-<span style="color:#8b949e"># Or target specific components</span>
-mockware parse <span style="color:#79c0ff">$IDF_PATH</span> \
-    --components <span style="color:#a5d6ff">esp_wifi,nvs_flash,driver</span> \
-    --output known_apis.yml</code></pre>
+<span style="color:#8b949e"># Re-scan: merge new detections, preserve edits</span>
+mockware scan <span style="color:#79c0ff">/path/to/project</span> \
+    --existing missing_apis.yml \
+    --mode partial \
+    --exclude <span style="color:#79c0ff">"mock-sdk/**"</span></code></pre>
             </div>
           </div>
         </div>
@@ -199,11 +195,11 @@ mockware parse <span style="color:#79c0ff">$IDF_PATH</span> \
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Generate mock SDK</h3>
-            <p>The generator scans your project for SDK <code>#include</code> directives, then produces stub headers + implementations &mdash; only for what you actually use.</p>
+            <p>The generator scans your project for SDK <code>#include</code> directives, then produces stub headers + shared definition headers (in <code>mockware/</code>) + implementations.</p>
             <div class="code-block">
               <pre><code>mockware generate \
     --project <span style="color:#79c0ff">.</span> \
-    --input known_apis.yml \
+    --input missing_apis.yml \
     --output mock-sdk</code></pre>
             </div>
           </div>
@@ -225,30 +221,23 @@ target_link_libraries(my_test PRIVATE mock_sdk)</code></pre>
     </div>
   </section>
 
-  <!-- ─── Installation ────────────────────────────── -->
   <section id="install">
     <div class="container">
       <div class="section-title">
         <h2>Installation</h2>
-        <p>Python 3.10+ required. <code>gcc</code> needed for header parsing.</p>
+        <p>Python 3.10+ required.</p>
       </div>
 
       <div class="tabs">
         <div class="tab-nav">
-          <button class="tab-btn active" data-tab="tab-uv">uv</button>
-          <button class="tab-btn" data-tab="tab-pip">pip</button>
+          <button class="tab-btn active" data-tab="tab-install">Install from source</button>
           <button class="tab-btn" data-tab="tab-run">Run without install</button>
         </div>
 
-        <div class="tab-content active" id="tab-uv">
+        <div class="tab-content active" id="tab-install">
           <div class="code-block">
-            <pre><code>uv tool install mockware</code></pre>
-          </div>
-        </div>
-
-        <div class="tab-content" id="tab-pip">
-          <div class="code-block">
-            <pre><code>pip install mockware</code></pre>
+            <pre><code>cd /path/to/mockware
+uv tool install .</code></pre>
           </div>
         </div>
 
@@ -266,7 +255,68 @@ uv run mockware --help</code></pre>
     </div>
   </section>
 
-  <!-- ─── Testing example ─────────────────────────── -->
+  <section id="yaml">
+    <div class="container">
+      <div class="section-title">
+        <h2>YAML format reference</h2>
+        <p>The 6-section format used by the scan output and generator input.</p>
+      </div>
+
+      <div class="code-block">
+        <pre><code>headers:
+  esp_wifi.h:
+    includes: [esp_err.h]
+  freertos/Freertos.h:
+    includes: []
+
+types:
+  esp_err_t: int
+
+macros:
+  ESP_OK: "0"
+  pdMS_TO_TICKS: (x) ((uint64_t)x)  <span style="color:#8b949e"># function-like → no space</span>
+
+enums:
+  wifi_mode_t:
+    values:
+      WIFI_MODE_NULL: 0
+      WIFI_MODE_STA: 1
+
+structs:
+  wifi_init_config_t:
+    definition: |
+      typedef struct { int member; } wifi_init_config_t;
+
+functions:
+  esp_wifi_init:
+    return: int
+    params: ["wifi_init_config_t* config"]
+    header: esp_wifi.h
+    body: "return 0;"
+  vTaskDelay:
+    return: int
+    params: ["uint64_t arg"]
+    header: freertos/Freertos.h</code></pre>
+      </div>
+
+      <div class="section-title" style="margin-top:2rem">
+        <h3>Function fields</h3>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>return</code></td><td>Yes</td><td>Return type string (defaults to <code>"void"</code>)</td></tr>
+          <tr><td><code>params</code></td><td>Yes</td><td>List of typed params, e.g. <code>["int x", "void* buf"]</code></td></tr>
+          <tr><td><code>header</code></td><td>No</td><td>Header path for attribution &rarr; <code>source/&lt;path&gt;.c</code>. Missing &rarr; <code>source/general.c</code></td></tr>
+          <tr><td><code>body</code></td><td>No</td><td>Custom stub body. Default: <code>return 0;</code> (or NULL for pointers)</td></tr>
+          <tr><td><code>kind</code></td><td>No</td><td><code>"inline"</code> for static inline functions (body is full declaration)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section id="test">
     <div class="container">
       <div class="section-title">
@@ -280,20 +330,19 @@ uv run mockware --help</code></pre>
           <div class="code-block">
             <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_wifi.h"</span>
 <span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"nvs_flash.h"</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_err.h"</span>
 
-<span style="color:#ffa657">wifi_mgr_status_t</span> <span style="color:#d2a8ff">wifi_manager_start</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ffa657">esp_err_t</span> ret;
+<span style="color:#ffa657">int</span> <span style="color:#d2a8ff">wifi_manager_start</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ffa657">int</span> ret;
 
     ret = <span style="color:#d2a8ff">nvs_flash_init</span>();
-    <span style="color:#ff7b72">if</span> (ret != ESP_OK)
-        <span style="color:#ff7b72">return</span> WIFI_MGR_FAIL;
+    <span style="color:#ff7b72">if</span> (ret != <span style="color:#a5d6ff">ESP_OK</span>)
+        <span style="color:#ff7b72">return</span> <span style="color:#ffa657">-1</span>;
 
     ret = <span style="color:#d2a8ff">esp_wifi_start</span>();
-    <span style="color:#ff7b72">if</span> (ret != ESP_OK)
-        <span style="color:#ff7b72">return</span> WIFI_MGR_FAIL;
+    <span style="color:#ff7b72">if</span> (ret != <span style="color:#a5d6ff">ESP_OK</span>)
+        <span style="color:#ff7b72">return</span> <span style="color:#ffa657">-1</span>;
 
-    <span style="color:#ff7b72">return</span> WIFI_MGR_OK;
+    <span style="color:#ff7b72">return</span> 0;
 }</code></pre>
           </div>
         </figure>
@@ -303,21 +352,20 @@ uv run mockware --help</code></pre>
           <div class="code-block">
             <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">&lt;assert.h&gt;</span>
 <span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"wifi_manager.h"</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_wifi_fakes.h"</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"nvs_flash_fakes.h"</span>
+<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"mockware/fakes.h"</span>
 
-<span style="color:#ff7b72">static</span> <span style="color:#ffa657">esp_err_t</span> <span style="color:#d2a8ff">mock_nvs_init</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ff7b72">return</span> ESP_OK;
+<span style="color:#ff7b72">static</span> <span style="color:#ffa657">int</span> <span style="color:#d2a8ff">mock_nvs_init</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ff7b72">return</span> 0;
 }
-<span style="color:#ff7b72">static</span> <span style="color:#ffa657">esp_err_t</span> <span style="color:#d2a8ff">mock_wifi_ok</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ff7b72">return</span> ESP_OK;
+<span style="color:#ff7b72">static</span> <span style="color:#ffa657">int</span> <span style="color:#d2a8ff">mock_wifi_ok</span>(<span style="color:#ffa657">void</span>) {
+    <span style="color:#ff7b72">return</span> 0;
 }
 
-<span style="color:#8b949e">// _fp symbols already declared via fakes headers</span>
+<span style="color:#8b949e">// _mock symbols declared via mockware/fakes.h</span>
 <span style="color:#ffa657">void</span> <span style="color:#d2a8ff">test_start_success</span>(<span style="color:#ffa657">void</span>) {
-    nvs_flash_init_fp = mock_nvs_init;
-    esp_wifi_start_fp = mock_wifi_ok;
-    <span style="color:#d2a8ff">assert</span>(wifi_manager_start() == WIFI_MGR_OK);
+    nvs_flash_init_mock = mock_nvs_init;
+    esp_wifi_start_mock = mock_wifi_ok;
+    <span style="color:#d2a8ff">assert</span>(wifi_manager_start() == 0);
 }</code></pre>
           </div>
         </figure>
@@ -325,7 +373,6 @@ uv run mockware --help</code></pre>
     </div>
   </section>
 
-  <!-- ─── Footer ──────────────────────────────────── -->
   <footer>
     <div class="container">
       <p>
