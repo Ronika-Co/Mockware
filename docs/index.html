@@ -1,50 +1,94 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>mockware — Generate mock SDK layers for embedded testing</title>
-  <meta name="description" content="Generate mock SDK implementations for embedded unit testing from YAML templates. Supports C functions with function-pointer overrides and C++ classes with virtual methods.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
-</head>
-<body>
-  <nav>
-    <div class="container">
-      <a href="#" class="logo"><span>mock</span>ware</a>
-      <ul>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#start">Quick start</a></li>
-        <li><a href="yaml-reference.html">YAML reference</a></li>
-        <li><a href="test-patterns.html">Testing</a></li>
-        <li><a href="https://github.com/Ronika-Co/Mockware">GitHub</a></li>
-      </ul>
-    </div>
-  </nav>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mockware — Generate mock SDK layers for embedded testing</title>
+    <meta
+      name="description"
+      content="Generate mock SDK implementations for embedded unit testing from YAML templates. Supports C functions with function-pointer overrides and C++ classes with virtual methods."
+    />
+    <meta
+      name="google-site-verification"
+      content="RLvK6p7sDv1IofFDZbrskPHNYd5kCn-mb_CLmLei02Y"
+    />
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ronika-co.github.io/Mockware/" />
+    <meta
+      property="og:title"
+      content="Mockware - Generate mock SDK layers for embedded testing"
+    />
+    <meta
+      property="og:description"
+      content="Generate mock SDK implementations for embedded unit testing from YAML templates. Supports C functions with function-pointer overrides and C++ classes with virtual methods."
+    />
+    <meta property="og:image" content="🧪" />
+    <meta property="og:image:width" content="100" />
+    <meta property="og:image:height" content="100" />
 
-  <header class="hero">
-    <div class="container">
-      <h1><span>mock</span>ware</h1>
-      <p class="tagline">
-        Generate mock SDK layers for embedded unit testing &mdash;
-        describe your external SDK headers in a YAML template, and
-        mockware produces compilable stubs with overridable function
-        pointers for C and virtual methods for C++.
-      </p>
-      <div class="buttons">
-        <a href="#start" class="btn btn-primary">Get started &rarr;</a>
-        <a href="https://github.com/Ronika-Co/Mockware" class="btn btn-secondary">GitHub</a>
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Mockware - Generate mock SDK layers for embedded testing"
+    />
+    <meta
+      name="twitter:description"
+      content="Generate mock SDK implementations for embedded unit testing from YAML templates. Supports C functions with function-pointer overrides and C++ classes with virtual methods."
+    />
+    <meta name="twitter:image" content="🧪" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>"
+    />
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="#" class="logo"><span>mock</span>ware</a>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#start">Quick start</a></li>
+          <li><a href="yaml-reference.html">YAML reference</a></li>
+          <li><a href="test-patterns.html">Testing</a></li>
+          <li><a href="https://github.com/Ronika-Co/Mockware">GitHub</a></li>
+        </ul>
       </div>
+    </nav>
 
-      <div class="hero-terminal">
-        <div class="bar">
-          <span></span><span></span><span></span>
-          <span class="title">bash</span>
+    <header class="hero">
+      <div class="container">
+        <h1><span>mock</span>ware</h1>
+        <p class="tagline">
+          Generate mock SDK layers for embedded unit testing &mdash; describe
+          your external SDK headers in a YAML template, and mockware produces
+          compilable stubs with overridable function pointers for C and virtual
+          methods for C++.
+        </p>
+        <div class="buttons">
+          <a href="#start" class="btn btn-primary">Get started &rarr;</a>
+          <a
+            href="https://github.com/Ronika-Co/Mockware"
+            class="btn btn-secondary"
+            >GitHub</a
+          >
         </div>
-        <pre><code><span style="color:#8b949e"># Create a YAML template describing your SDK dependencies</span>
+
+        <div class="hero-terminal">
+          <div class="bar">
+            <span></span><span></span><span></span>
+            <span class="title">bash</span>
+          </div>
+          <pre><code><span style="color:#8b949e"># Create a YAML template describing your SDK dependencies</span>
 <span style="color:#3fb950">$</span> cat &gt; template.yml &lt;&lt; 'EOF'
 <span style="color:#79c0ff">headers:</span>
 <span style="color:#79c0ff">  "esp_err.h":</span>
@@ -61,48 +105,70 @@
 EOF
 <span style="color:#8b949e"># Generate the mock SDK</span>
 <span style="color:#3fb950">$</span> mockware generate template.yml -o mock-sdk</code></pre>
-      </div>
-    </div>
-  </header>
-
-  <section id="features">
-    <div class="container">
-      <h2>Features</h2>
-      <div class="grid-2">
-        <div class="card">
-          <h4>C function-pointer mocking</h4>
-          <p>Each function generates a <code>_mock</code> pointer and a <code>_default</code> implementation. Replace at test time by assigning to <code>func_mock</code>.</p>
-        </div>
-        <div class="card">
-          <h4>C++ virtual method mocking</h4>
-          <p>Classes generate virtual methods with default implementations. Override in test subclasses — idiomatic C++ mocking.</p>
-        </div>
-        <div class="card">
-          <h4>Namespaces &amp; enums</h4>
-          <p>Full C++ namespace support with nested classes, enums, typedefs, and free functions inside namespaces.</p>
-        </div>
-        <div class="card">
-          <h4>Nested directory output</h4>
-          <p><code>driver/gpio.h</code> in YAML produces <code>include/driver/gpio.h</code> and <code>source/driver/gpio.c</code>.</p>
-        </div>
-        <div class="card">
-          <h4>Variadic macros</h4>
-          <p>Function-like macros (e.g. <code>ESP_LOGI(...)</code>) become no-ops in test builds to suppress logging output.</p>
-        </div>
-        <div class="card">
-          <h4>Mixed C/C++ projects</h4>
-          <p>Each header entry has a <code>language</code> field (<code>c</code> or <code>cpp</code>). Generate both C and C++ mocks in one pass.</p>
         </div>
       </div>
-    </div>
-  </section>
+    </header>
 
-  <section id="start">
-    <div class="container">
-      <h2>Quick start</h2>
+    <section id="features">
+      <div class="container">
+        <h2>Features</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4>C function-pointer mocking</h4>
+            <p>
+              Each function generates a <code>_mock</code> pointer and a
+              <code>_default</code> implementation. Replace at test time by
+              assigning to <code>func_mock</code>.
+            </p>
+          </div>
+          <div class="card">
+            <h4>C++ virtual method mocking</h4>
+            <p>
+              Classes generate virtual methods with default implementations.
+              Override in test subclasses — idiomatic C++ mocking.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Namespaces &amp; enums</h4>
+            <p>
+              Full C++ namespace support with nested classes, enums, typedefs,
+              and free functions inside namespaces.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Nested directory output</h4>
+            <p>
+              <code>driver/gpio.h</code> in YAML produces
+              <code>include/driver/gpio.h</code> and
+              <code>source/driver/gpio.c</code>.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Variadic macros</h4>
+            <p>
+              Function-like macros (e.g. <code>ESP_LOGI(...)</code>) become
+              no-ops in test builds to suppress logging output.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Mixed C/C++ projects</h4>
+            <p>
+              Each header entry has a <code>language</code> field (<code
+                >c</code
+              >
+              or <code>cpp</code>). Generate both C and C++ mocks in one pass.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-      <h3>1. Download or run from source</h3>
-      <pre><code># Option A: Download a pre-built binary from GitHub Releases
+    <section id="start">
+      <div class="container">
+        <h2>Quick start</h2>
+
+        <h3>1. Download or run from source</h3>
+        <pre><code># Option A: Download a pre-built binary from GitHub Releases
 # https://github.com/Ronika-Co/Mockware/releases
 
 # Option B: Run directly from source (no install needed)
@@ -110,9 +176,13 @@ git clone https://github.com/Ronika-Co/Mockware.git
 cd Mockware
 uv run mockware --help</code></pre>
 
-      <h3>2. Create YAML templates</h3>
-      <p>Describe the external SDK headers your project depends on. You can organize them in separate files by domain (e.g. <code>esp.yml</code>, <code>freertos.yml</code>) or keep everything in one file.</p>
-      <pre><code><span style="color:#8b949e"># esp.yml</span>
+        <h3>2. Create YAML templates</h3>
+        <p>
+          Describe the external SDK headers your project depends on. You can
+          organize them in separate files by domain (e.g. <code>esp.yml</code>,
+          <code>freertos.yml</code>) or keep everything in one file.
+        </p>
+        <pre><code><span style="color:#8b949e"># esp.yml</span>
 headers:
   <span style="color:#a5d6ff">"esp_err.h"</span>:
     macros:
@@ -128,8 +198,8 @@ headers:
         params: [<span style="color:#a5d6ff">"int pin"</span>, <span style="color:#a5d6ff">"int level"</span>]
         body: <span style="color:#a5d6ff">"return ESP_OK;"</span></code></pre>
 
-      <h3>3. Generate mocks</h3>
-      <pre><code><span style="color:#8b949e"># From a directory of templates</span>
+        <h3>3. Generate mocks</h3>
+        <pre><code><span style="color:#8b949e"># From a directory of templates</span>
 mockware generate templates/ -o mock-sdk
 
 <span style="color:#8b949e"># From individual files</span>
@@ -138,8 +208,8 @@ mockware generate esp.yml freertos.yml -o mock-sdk
 <span style="color:#8b949e"># From a single template file</span>
 mockware generate template.yml -o mock-sdk</code></pre>
 
-      <h3>4. Output structure</h3>
-      <pre><code>mock-sdk/
+        <h3>4. Output structure</h3>
+        <pre><code>mock-sdk/
 ├── include/
 │   ├── esp_err.h
 │   ├── driver/gpio.h          <span style="color:#8b949e"># stub headers</span>
@@ -149,8 +219,8 @@ mockware generate template.yml -o mock-sdk</code></pre>
     ├── driver/gpio.c          <span style="color:#8b949e"># mock implementations</span>
     └── ...</code></pre>
 
-      <h3>5. Write tests</h3>
-      <pre><code><span style="color:#8b949e">// test_gpio.cpp</span>
+        <h3>5. Write tests</h3>
+        <pre><code><span style="color:#8b949e">// test_gpio.cpp</span>
 #include &lt;cassert&gt;
 #include <span style="color:#a5d6ff">"driver/gpio.h"</span>
 #include <span style="color:#a5d6ff">"mockware/fakes.h"</span>
@@ -164,15 +234,20 @@ void test_gpio_set_level_success() {
     esp_err_t result = gpio_set_level(1, 1);
     assert(result == ESP_OK);
 }</code></pre>
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <footer>
-    <div class="container">
-      <p>mockware is open source. <a href="https://github.com/Ronika-Co/Mockware">Contribute on GitHub</a>.</p>
-    </div>
-  </footer>
+    <footer>
+      <div class="container">
+        <p>
+          mockware is open source.
+          <a href="https://github.com/Ronika-Co/Mockware"
+            >Contribute on GitHub</a
+          >.
+        </p>
+      </div>
+    </footer>
 
-  <script src="script.js"></script>
-</body>
+    <script src="script.js"></script>
+  </body>
 </html>
