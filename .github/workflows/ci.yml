@@ -94,10 +94,13 @@ jobs:
       - run: pyinstaller --onefile --name mockware src/mockware/cli.py
       - shell: bash
         run: |
-          BIN=mockware
-          [ "${{ runner.os }}" = "Windows" ] && BIN=mockware.exe
+          SUFFIX=
+          [ "${{ runner.os }}" = "Windows" ] && SUFFIX=.exe
+          PLATFORM=linux
+          [ "${{ runner.os }}" = "Windows" ] && PLATFORM=windows
+          mv dist/mockware$SUFFIX dist/mockware-$PLATFORM$SUFFIX
           echo "ARTIFACT_NAME=mockware-${{ runner.os }}" >> $GITHUB_ENV
-          echo "ARTIFACT_PATH=dist/$BIN" >> $GITHUB_ENV
+          echo "ARTIFACT_PATH=dist/mockware-$PLATFORM$SUFFIX" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
@@ -123,17 +126,17 @@ jobs:
 
             Pre-built binaries for Linux and Windows (via PyInstaller).
 
-            - `mockware-ubuntu-latest` — Linux
-            - `mockware-windows-latest` — Windows
+            - `mockware-linux` — Linux
+            - `mockware-windows.exe` — Windows
 
             ### Usage
 
             ```bash
             # Run directly
-            ./mockware-ubuntu-latest --help
+            ./mockware-linux --help
 
             # Or rename and add to PATH
-            mv mockware-ubuntu-latest /usr/local/bin/mockware
+            mv mockware-linux /usr/local/bin/mockware
             mockware generate templates/ -o mock-sdk
             ```
           draft: false

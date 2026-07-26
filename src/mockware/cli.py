@@ -89,3 +89,7 @@ def generate(templates: tuple[str, ...], output: str, verbose: bool) -> None:
     generate_sources(output, config, verbose)
     generate_fakes_header(output, config, verbose)
     click.echo("Done")
+
+
+if __name__ == "__main__":
+    main()
