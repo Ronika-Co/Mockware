@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mockware — Generate mock SDK layers for embedded testing</title>
-  <meta name="description" content="Scan your project source, auto-detect missing external SDK dependencies, and generate stub headers with function-pointer overrides for unit testing.">
-  <meta name="google-site-verification" content="RLvK6p7sDv1IofFDZbrskPHNYd5kCn-mb_CLmLei02Y" />
+  <meta name="description" content="Generate mock SDK implementations for embedded unit testing from YAML templates. Supports C functions with function-pointer overrides and C++ classes with virtual methods.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -13,17 +12,15 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
 </head>
 <body>
-
   <nav>
     <div class="container">
       <a href="#" class="logo"><span>mock</span>ware</a>
       <ul>
-        <li><a href="#how">How it works</a></li>
         <li><a href="#features">Features</a></li>
         <li><a href="#start">Quick start</a></li>
-        <li><a href="#yaml">YAML format</a></li>
-        <li><a href="#test">Testing</a></li>
-        <li><button id="theme-toggle" aria-label="Toggle theme">🌙</button></li>
+        <li><a href="yaml-reference.html">YAML reference</a></li>
+        <li><a href="test-patterns.html">Testing</a></li>
+        <li><a href="https://github.com/Ronika-Co/Mockware">GitHub</a></li>
       </ul>
     </div>
   </nav>
@@ -33,8 +30,9 @@
       <h1><span>mock</span>ware</h1>
       <p class="tagline">
         Generate mock SDK layers for embedded unit testing &mdash;
-        auto-detect missing external SDK dependencies, generate stub
-        implementations, and override any function at test time.
+        describe your external SDK headers in a YAML template, and
+        mockware produces compilable stubs with overridable function
+        pointers for C and virtual methods for C++.
       </p>
       <div class="buttons">
         <a href="#start" class="btn btn-primary">Get started &rarr;</a>
@@ -46,120 +44,54 @@
           <span></span><span></span><span></span>
           <span class="title">bash</span>
         </div>
-        <pre><code><span style="color:#8b949e"># Phase 1: Auto-detect missing external dependencies</span>
-<span style="color:#3fb950">$</span> mockware scan <span style="color:#79c0ff">.</span> -o missing_apis.yml
-
-<span style="color:#8b949e"># Phase 2: Generate mock SDK for your project</span>
-<span style="color:#3fb950">$</span> mockware generate \
-    --project <span style="color:#79c0ff">.</span> \
-    --input missing_apis.yml \
-    --output mock-sdk
-
-<span style="color:#8b949e"># Phase 3: Build and run tests</span>
-<span style="color:#3fb950">$</span> cmake -B build && cmake --build build
-<span style="color:#3fb950">$</span> ./build/test_runner
-<span style="color:#8b949e">All tests passed!</span></code></pre>
+        <pre><code><span style="color:#8b949e"># Create a YAML template describing your SDK dependencies</span>
+<span style="color:#3fb950">$</span> cat &gt; template.yml &lt;&lt; 'EOF'
+<span style="color:#79c0ff">headers:</span>
+<span style="color:#79c0ff">  "esp_err.h":</span>
+    macros:
+      ESP_OK: <span style="color:#a5d6ff">"0"</span>
+    types:
+      esp_err_t: int
+<span style="color:#79c0ff">  "driver/gpio.h":</span>
+    includes: [<span style="color:#a5d6ff">"esp_err.h"</span>]
+    functions:
+      gpio_set_level:
+        return: esp_err_t
+        params: [<span style="color:#a5d6ff">"int pin"</span>, <span style="color:#a5d6ff">"int level"</span>]
+EOF
+<span style="color:#8b949e"># Generate the mock SDK</span>
+<span style="color:#3fb950">$</span> mockware generate template.yml -o mock-sdk</code></pre>
       </div>
     </div>
   </header>
 
-  <section id="how">
-    <div class="container">
-      <div class="section-title">
-        <h2>How it works</h2>
-        <p>All definitions (types, macros, enums, structs) are global &mdash; no per-header attribution noise.</p>
-      </div>
-
-      <div class="diagram">
-        <div class="diagram-row">
-          <div class="diagram-box">
-            <div class="icon">📁</div>
-            <div class="label">Your Project<br>source files (.c/.h)</div>
-          </div>
-          <span class="diagram-arrow">&rarr;</span>
-          <div class="diagram-box" style="min-width:200px">
-            <div class="icon">📋</div>
-            <div><strong>missing_apis.yml</strong></div>
-            <div class="label">6 sections: headers, types,<br>macros, enums, structs, functions</div>
-          </div>
-          <span class="diagram-arrow">&larr;</span>
-          <div class="diagram-box">
-            <div class="icon">📁</div>
-            <div class="label">Your project<br><code>#include</code>s</div>
-          </div>
-        </div>
-        <div style="margin:0.5rem 0;color:var(--text-dim);font-size:1.5rem;">&#8595;</div>
-        <div class="diagram-row">
-          <div class="diagram-box" style="min-width:200px;background:var(--accent);color:#fff;">
-            <div class="icon">⚡</div>
-            <div><strong>mockware generate</strong></div>
-          </div>
-          <span class="diagram-arrow">&rarr;</span>
-          <div class="diagram-box" style="min-width:220px">
-            <div class="icon">🧩</div>
-            <div><strong>mock-sdk/</strong></div>
-            <div class="label">
-              include/&lt;header&gt;.h + mockware/&lt;defs&gt;.h<br>
-              source/ + function pointers<br>
-              auto stdint/stddef/bool includes
-            </div>
-          </div>
-          <span class="diagram-arrow">&rarr;</span>
-          <div class="diagram-box" style="min-width:140px">
-            <div class="icon">✅</div>
-            <div class="label">cmake &amp; test</div>
-          </div>
-        </div>
-        <div class="sub">
-          <span>include/esp_wifi.h</span>
-          <span>include/freertos/Freertos.h</span>
-          <span>include/mockware/types.h</span>
-          <span>include/mockware/fakes.h</span>
-          <span>source/esp_wifi.c</span>
-          <span>source/general.c</span>
-          <span>source/freertos/Freertos.c</span>
-          <span>CMakeLists.txt</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <section id="features">
     <div class="container">
-      <div class="section-title">
-        <h2>Features</h2>
-        <p>Designed for real-world embedded projects, not just demos.</p>
-      </div>
-      <div class="features">
-        <div class="feature-card">
-          <div class="emoji">🎯</div>
-          <h3>Function-pointer overrides</h3>
-          <p>Every stub exports a <code>_mock</code> pointer. The generated <code>mockware/fakes.h</code> declares them all as <code>extern</code>&mdash;just include and assign in tests.</p>
+      <h2>Features</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>C function-pointer mocking</h4>
+          <p>Each function generates a <code>_mock</code> pointer and a <code>_default</code> implementation. Replace at test time by assigning to <code>func_mock</code>.</p>
         </div>
-        <div class="feature-card">
-          <div class="emoji">🔍</div>
-          <h3>Auto-detect missing deps</h3>
-          <p>Scans your source files for <code>#include</code> directives, finds which referenced headers don't exist in your project, and creates YAML entries automatically.</p>
+        <div class="card">
+          <h4>C++ virtual method mocking</h4>
+          <p>Classes generate virtual methods with default implementations. Override in test subclasses — idiomatic C++ mocking.</p>
         </div>
-        <div class="feature-card">
-          <div class="emoji">🧠</div>
-          <h3>Inference from usage</h3>
-          <p>Function signatures, types, macros, enums, and structs are inferred from your code. All definitions are global &mdash; no attribution noise across headers.</p>
+        <div class="card">
+          <h4>Namespaces &amp; enums</h4>
+          <p>Full C++ namespace support with nested classes, enums, typedefs, and free functions inside namespaces.</p>
         </div>
-        <div class="feature-card">
-          <div class="emoji">🔁</div>
-          <h3>Non-destructive merging</h3>
-          <p>Use <code>--mode partial</code> to merge newly discovered deps into your existing YAML. Manual edits are never overwritten.</p>
+        <div class="card">
+          <h4>Nested directory output</h4>
+          <p><code>driver/gpio.h</code> in YAML produces <code>include/driver/gpio.h</code> and <code>source/driver/gpio.c</code>.</p>
         </div>
-        <div class="feature-card">
-          <div class="emoji">🧩</div>
-          <h3>Function-like macros</h3>
-          <p>YAML values starting with <code>(</code> generate <code>#define NAME(value)</code> (no space). Supports FreeRTOS-style macros like <code>pdMS_TO_TICKS: (x) ((uint64_t)x)</code>.</p>
+        <div class="card">
+          <h4>Variadic macros</h4>
+          <p>Function-like macros (e.g. <code>ESP_LOGI(...)</code>) become no-ops in test builds to suppress logging output.</p>
         </div>
-        <div class="feature-card">
-          <div class="emoji">📦</div>
-          <h3>Auto standard includes</h3>
-          <p>The generator scans for <code>uint64_t</code>, <code>size_t</code>, <code>bool</code>, <code>FILE</code> etc. and automatically adds <code>#include &lt;stdint.h&gt;</code>, <code>&lt;stddef.h&gt;</code>, etc. to <code>types.h</code>.</p>
+        <div class="card">
+          <h4>Mixed C/C++ projects</h4>
+          <p>Each header entry has a <code>language</code> field (<code>c</code> or <code>cpp</code>). Generate both C and C++ mocks in one pass.</p>
         </div>
       </div>
     </div>
@@ -167,222 +99,77 @@
 
   <section id="start">
     <div class="container">
-      <div class="section-title">
-        <h2>Quick start</h2>
-        <p>Three commands to go from project source to passing tests.</p>
-      </div>
+      <h2>Quick start</h2>
 
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <h3>Auto-detect missing dependencies</h3>
-            <p>Point <code>mockware scan</code> at your project. It scans source files for <code>#include</code> directives and finds headers that aren't in your project tree or include paths. The tool infers function signatures, types, macros, enums, and structs from usage context.</p>
-            <div class="code-block">
-              <pre><code><span style="color:#8b949e"># Auto-detect missing external deps</span>
-mockware scan <span style="color:#79c0ff">/path/to/project</span> -o missing_apis.yml
+      <h3>1. Download or run from source</h3>
+      <pre><code># Option A: Download a pre-built binary from GitHub Releases
+# https://github.com/Ronika-Co/Mockware/releases
 
-<span style="color:#8b949e"># Re-scan: merge new detections, preserve edits</span>
-mockware scan <span style="color:#79c0ff">/path/to/project</span> \
-    --existing missing_apis.yml \
-    --mode partial \
-    --exclude <span style="color:#79c0ff">"mock-sdk/**"</span></code></pre>
-            </div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <h3>Generate mock SDK</h3>
-            <p>The generator scans your project for SDK <code>#include</code> directives, then produces stub headers + shared definition headers (in <code>mockware/</code>) + implementations.</p>
-            <div class="code-block">
-              <pre><code>mockware generate \
-    --project <span style="color:#79c0ff">.</span> \
-    --input missing_apis.yml \
-    --output mock-sdk</code></pre>
-            </div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-body">
-            <h3>Link and test</h3>
-            <p>Add the generated CMake target to your test build and link against it.</p>
-            <div class="code-block">
-              <pre><code><span style="color:#8b949e"># In your test CMakeLists.txt</span>
-add_subdirectory(mock-sdk)
-target_link_libraries(my_test PRIVATE mock_sdk)</code></pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="install">
-    <div class="container">
-      <div class="section-title">
-        <h2>Installation</h2>
-        <p>Python 3.10+ required.</p>
-      </div>
-
-      <div class="tabs">
-        <div class="tab-nav">
-          <button class="tab-btn active" data-tab="tab-install">Install from source</button>
-          <button class="tab-btn" data-tab="tab-run">Run without install</button>
-        </div>
-
-        <div class="tab-content active" id="tab-install">
-          <div class="code-block">
-            <pre><code>cd /path/to/mockware
-uv tool install .</code></pre>
-          </div>
-        </div>
-
-        <div class="tab-content" id="tab-run">
-          <div class="code-block">
-            <pre><code><span style="color:#8b949e"># From the repo root</span>
+# Option B: Run directly from source (no install needed)
+git clone https://github.com/Ronika-Co/Mockware.git
+cd Mockware
 uv run mockware --help</code></pre>
-          </div>
-        </div>
-      </div>
 
-      <p style="text-align:center;margin-top:1rem;">
-        <a href="#start" class="btn btn-primary">Get started &rarr;</a>
-      </p>
-    </div>
-  </section>
+      <h3>2. Create YAML templates</h3>
+      <p>Describe the external SDK headers your project depends on. You can organize them in separate files by domain (e.g. <code>esp.yml</code>, <code>freertos.yml</code>) or keep everything in one file.</p>
+      <pre><code><span style="color:#8b949e"># esp.yml</span>
+headers:
+  <span style="color:#a5d6ff">"esp_err.h"</span>:
+    macros:
+      ESP_OK: <span style="color:#a5d6ff">"0"</span>
+    types:
+      esp_err_t: int
 
-  <section id="yaml">
-    <div class="container">
-      <div class="section-title">
-        <h2>YAML format reference</h2>
-        <p>The 6-section format used by the scan output and generator input.</p>
-      </div>
+  <span style="color:#a5d6ff">"driver/gpio.h"</span>:
+    includes: [<span style="color:#a5d6ff">"esp_err.h"</span>]
+    functions:
+      gpio_set_level:
+        return: esp_err_t
+        params: [<span style="color:#a5d6ff">"int pin"</span>, <span style="color:#a5d6ff">"int level"</span>]
+        body: <span style="color:#a5d6ff">"return ESP_OK;"</span></code></pre>
 
-      <div class="code-block">
-        <pre><code>headers:
-  esp_wifi.h:
-    includes: [esp_err.h]
-  freertos/Freertos.h:
-    includes: []
+      <h3>3. Generate mocks</h3>
+      <pre><code><span style="color:#8b949e"># From a directory of templates</span>
+mockware generate templates/ -o mock-sdk
 
-types:
-  esp_err_t: int
+<span style="color:#8b949e"># From individual files</span>
+mockware generate esp.yml freertos.yml -o mock-sdk
 
-macros:
-  ESP_OK: "0"
-  pdMS_TO_TICKS: (x) ((uint64_t)x)  <span style="color:#8b949e"># function-like → no space</span>
+<span style="color:#8b949e"># From a single template file</span>
+mockware generate template.yml -o mock-sdk</code></pre>
 
-enums:
-  wifi_mode_t:
-    values:
-      WIFI_MODE_NULL: 0
-      WIFI_MODE_STA: 1
+      <h3>4. Output structure</h3>
+      <pre><code>mock-sdk/
+├── include/
+│   ├── esp_err.h
+│   ├── driver/gpio.h          <span style="color:#8b949e"># stub headers</span>
+│   └── mockware/
+│       └── fakes.h            <span style="color:#8b949e"># extern function pointer decls</span>
+└── source/
+    ├── driver/gpio.c          <span style="color:#8b949e"># mock implementations</span>
+    └── ...</code></pre>
 
-structs:
-  wifi_init_config_t:
-    definition: |
-      typedef struct { int member; } wifi_init_config_t;
+      <h3>5. Write tests</h3>
+      <pre><code><span style="color:#8b949e">// test_gpio.cpp</span>
+#include &lt;cassert&gt;
+#include <span style="color:#a5d6ff">"driver/gpio.h"</span>
+#include <span style="color:#a5d6ff">"mockware/fakes.h"</span>
 
-functions:
-  esp_wifi_init:
-    return: int
-    params: ["wifi_init_config_t* config"]
-    header: esp_wifi.h
-    body: "return 0;"
-  vTaskDelay:
-    return: int
-    params: ["uint64_t arg"]
-    header: freertos/Freertos.h</code></pre>
-      </div>
+void test_gpio_set_level_success() {
+    <span style="color:#8b949e">// Replace the mock to return success</span>
+    gpio_set_level_mock = [](int pin, int level) -> esp_err_t {
+        return ESP_OK;
+    };
 
-      <div class="section-title" style="margin-top:2rem">
-        <h3>Function fields</h3>
-      </div>
-      <table>
-        <thead>
-          <tr><th>Field</th><th>Required</th><th>Description</th></tr>
-        </thead>
-        <tbody>
-          <tr><td><code>return</code></td><td>Yes</td><td>Return type string (defaults to <code>"void"</code>)</td></tr>
-          <tr><td><code>params</code></td><td>Yes</td><td>List of typed params, e.g. <code>["int x", "void* buf"]</code></td></tr>
-          <tr><td><code>header</code></td><td>No</td><td>Header path for attribution &rarr; <code>source/&lt;path&gt;.c</code>. Missing &rarr; <code>source/general.c</code></td></tr>
-          <tr><td><code>body</code></td><td>No</td><td>Custom stub body. Default: <code>return 0;</code> (or NULL for pointers)</td></tr>
-          <tr><td><code>kind</code></td><td>No</td><td><code>"inline"</code> for static inline functions (body is full declaration)</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="test">
-    <div class="container">
-      <div class="section-title">
-        <h2>Testing with custom fakes</h2>
-        <p>Every generated stub exposes a function pointer you can reassign.</p>
-      </div>
-
-      <div class="test-grid">
-        <figure>
-          <figcaption>Production code (<code>wifi_manager.c</code>)</figcaption>
-          <div class="code-block">
-            <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"esp_wifi.h"</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"nvs_flash.h"</span>
-
-<span style="color:#ffa657">int</span> <span style="color:#d2a8ff">wifi_manager_start</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ffa657">int</span> ret;
-
-    ret = <span style="color:#d2a8ff">nvs_flash_init</span>();
-    <span style="color:#ff7b72">if</span> (ret != <span style="color:#a5d6ff">ESP_OK</span>)
-        <span style="color:#ff7b72">return</span> <span style="color:#ffa657">-1</span>;
-
-    ret = <span style="color:#d2a8ff">esp_wifi_start</span>();
-    <span style="color:#ff7b72">if</span> (ret != <span style="color:#a5d6ff">ESP_OK</span>)
-        <span style="color:#ff7b72">return</span> <span style="color:#ffa657">-1</span>;
-
-    <span style="color:#ff7b72">return</span> 0;
+    esp_err_t result = gpio_set_level(1, 1);
+    assert(result == ESP_OK);
 }</code></pre>
-          </div>
-        </figure>
-
-        <figure>
-          <figcaption>Test code (<code>test_wifi_manager.c</code>)</figcaption>
-          <div class="code-block">
-            <pre><code><span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">&lt;assert.h&gt;</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"wifi_manager.h"</span>
-<span style="color:#ff7b72">#include</span> <span style="color:#a5d6ff">"mockware/fakes.h"</span>
-
-<span style="color:#ff7b72">static</span> <span style="color:#ffa657">int</span> <span style="color:#d2a8ff">mock_nvs_init</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ff7b72">return</span> 0;
-}
-<span style="color:#ff7b72">static</span> <span style="color:#ffa657">int</span> <span style="color:#d2a8ff">mock_wifi_ok</span>(<span style="color:#ffa657">void</span>) {
-    <span style="color:#ff7b72">return</span> 0;
-}
-
-<span style="color:#8b949e">// _mock symbols declared via mockware/fakes.h</span>
-<span style="color:#ffa657">void</span> <span style="color:#d2a8ff">test_start_success</span>(<span style="color:#ffa657">void</span>) {
-    nvs_flash_init_mock = mock_nvs_init;
-    esp_wifi_start_mock = mock_wifi_ok;
-    <span style="color:#d2a8ff">assert</span>(wifi_manager_start() == 0);
-}</code></pre>
-          </div>
-        </figure>
-      </div>
     </div>
   </section>
 
   <footer>
     <div class="container">
-      <p>
-        <a href="https://github.com/Ronika-Co/Mockware">GitHub</a>
-        &middot;
-        <a href="https://github.com/Ronika-Co/Mockware/issues">Issues</a>
-        &middot;
-        MIT License
-      </p>
-      <p style="margin-top:0.3rem;">&copy; 2026 mockware contributors</p>
+      <p>mockware is open source. <a href="https://github.com/Ronika-Co/Mockware">Contribute on GitHub</a>.</p>
     </div>
   </footer>
 

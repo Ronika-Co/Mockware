@@ -1,0 +1,33 @@
+headers:
+  "esp_err.h":
+    macros:
+      ESP_OK: "0"
+      ESP_FAIL: "-1"
+    types:
+      esp_err_t: int
+
+  "driver/gpio.h":
+    includes:
+      - "esp_err.h"
+    macros:
+      GPIO_OUT: "1"
+    types:
+      gpio_mode_t: int
+    functions:
+      gpio_set_level:
+        return: esp_err_t
+        params: ["int pin", "int level"]
+        body: "return ESP_OK;"
+      gpio_get_level:
+        return: int
+        params: ["int pin"]
+
+  "freertos/task.h":
+    macros:
+      pdMS_TO_TICKS:
+        kind: variadic
+        body: "((x) / portTICK_PERIOD_MS)"
+    functions:
+      vTaskDelay:
+        return: void
+        params: ["int ticks"]

@@ -1,0 +1,117 @@
+# =============================================================================
+# OpenThread headers
+# =============================================================================
+
+headers:
+  "openthread/error.h":
+    enums:
+      otError:
+        values:
+          OT_ERROR_NONE: 0
+          OT_ERROR_FAILED: 1
+
+  "openthread/instance.h":
+    system_includes:
+      - <stdbool.h>
+      - <stdint.h>
+    types:
+      otInstance:
+        definition: |
+          typedef struct otInstance {
+              int placeholder;
+          } otInstance;
+
+  "openthread/thread.h":
+    includes:
+      - "openthread/instance.h"
+      - "openthread/error.h"
+    types:
+      otChangedFlags: uint32_t
+      otLogLevel: uint32_t
+    enums:
+      otDeviceRole:
+        values:
+          OT_DEVICE_ROLE_DISABLED: 0
+          OT_DEVICE_ROLE_DETACHED: 1
+          OT_DEVICE_ROLE_CHILD: 2
+          OT_DEVICE_ROLE_ROUTER: 3
+          OT_DEVICE_ROLE_LEADER: 4
+    functions:
+      otThreadGetDeviceRole:
+        return: otDeviceRole
+        params: ["otInstance* aInstance"]
+        body: "return OT_DEVICE_ROLE_CHILD;"
+      otThreadSetEnabled:
+        return: otError
+        params: ["otInstance* aInstance", "bool aEnabled"]
+        body: "return OT_ERROR_NONE;"
+      otThreadErrorToString:
+        return: "const char*"
+        params: ["otError aError"]
+        body: "return \"OK\";"
+
+  "openthread/logging.h":
+    system_includes:
+      - <stdint.h>
+    functions:
+      otLoggingSetLevel:
+        return: void
+        params: ["uint32_t level"]
+
+  "openthread/dataset.h":
+    includes:
+      - "openthread/instance.h"
+      - "openthread/error.h"
+    system_includes:
+      - <stdint.h>
+      - <string.h>
+    macros:
+      OT_NETWORK_KEY_SIZE: "16"
+      OT_NETWORK_NAME_MAX_SIZE: "16"
+    types:
+      otNetworkKey:
+        definition: |
+          typedef struct {
+              uint8_t m8[OT_NETWORK_KEY_SIZE];
+          } otNetworkKey;
+      otNetworkName:
+        definition: |
+          typedef struct {
+              char m8[OT_NETWORK_NAME_MAX_SIZE + 1];
+          } otNetworkName;
+      otDatasetComponents:
+        definition: |
+          typedef struct {
+              bool mIsNetworkNamePresent;
+              bool mIsNetworkKeyPresent;
+          } otDatasetComponents;
+      otOperationalDataset:
+        definition: |
+          typedef struct {
+              otNetworkName mNetworkName;
+              otNetworkKey mNetworkKey;
+              otDatasetComponents mComponents;
+          } otOperationalDataset;
+      otOperationalDatasetTlvs:
+        definition: |
+          typedef struct {
+              uint8_t mTlvs[512];
+              uint16_t mLength;
+          } otOperationalDatasetTlvs;
+    functions:
+      otDatasetGetActive:
+        return: otError
+        params: ["otInstance* aInstance", "otOperationalDataset* aDataset"]
+      otDatasetSetActive:
+        return: otError
+        params: ["otInstance* aInstance", "const otOperationalDataset* aDataset"]
+      otDatasetConvertToTlvs:
+        return: void
+        params: ["const otOperationalDataset* aDataset", "otOperationalDatasetTlvs* aDatasetTlvs"]
+
+  "openthread/ip6.h": {}
+
+  "openthread/thread_ftd.h":
+    includes:
+      - "openthread/thread.h"
+      - "openthread/dataset.h"

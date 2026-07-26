@@ -1,0 +1,134 @@
+# =============================================================================
+# Miscellaneous headers (cJSON, drivers, HAL, SoC)
+# =============================================================================
+
+headers:
+  "cJSON.h":
+    types:
+      cJSON:
+        definition: |
+          typedef struct cJSON {
+              struct cJSON* next;
+              struct cJSON* prev;
+              struct cJSON* child;
+              int type;
+              char* valuestring;
+              int valueint;
+              double valuedouble;
+          } cJSON;
+    functions:
+      cJSON_CreateObject:
+        return: cJSON*
+        params: []
+      cJSON_AddNumberToObject:
+        return: cJSON*
+        params: ["cJSON* obj", "const char* name", "double value"]
+      cJSON_AddStringToObject:
+        return: cJSON*
+        params: ["cJSON* obj", "const char* name", "const char* value"]
+      cJSON_AddBoolToObject:
+        return: cJSON*
+        params: ["cJSON* obj", "const char* name", "int value"]
+      cJSON_PrintUnformatted:
+        return: char*
+        params: ["const cJSON* obj"]
+      cJSON_Parse:
+        return: cJSON*
+        params: ["const char* json"]
+      cJSON_GetObjectItem:
+        return: cJSON*
+        params: ["const cJSON* obj", "const char* name"]
+      cJSON_IsNumber:
+        return: int
+        params: ["const cJSON* item"]
+      cJSON_IsString:
+        return: int
+        params: ["const cJSON* item"]
+      cJSON_IsBool:
+        return: int
+        params: ["const cJSON* item"]
+      cJSON_IsTrue:
+        return: int
+        params: ["const cJSON* item"]
+      cJSON_Delete:
+        return: void
+        params: ["cJSON* item"]
+
+  "driver/spi_common.h":
+    includes:
+      - "esp_err.h"
+    types:
+      spi_host_device_t: int
+      spi_bus_config_t:
+        definition: |
+          typedef struct {
+              int mosi_io_num;
+              int miso_io_num;
+              int sclk_io_num;
+              int quadwp_io_num;
+              int quadhd_io_num;
+              int max_transfer_sz;
+          } spi_bus_config_t;
+    macros:
+      SPI2_HOST: "1"
+      SPI_DMA_CH_AUTO: "3"
+    functions:
+      spi_bus_initialize:
+        return: esp_err_t
+        params:
+          [
+            "spi_host_device_t host",
+            "const spi_bus_config_t* bus_config",
+            "int dma_chan",
+          ]
+
+  "hal/spi_types.h":
+    types:
+      spi_host_device_t:
+        definition: "typedef int spi_host_device_t;"
+    macros:
+      SPI2_HOST: "1"
+
+  "hal/uart_types.h":
+    system_includes:
+      - <stdint.h>
+    macros:
+      UART_NUM_0: "0"
+    enums:
+      uart_word_length_t:
+        values:
+          UART_DATA_8_BITS: 0
+      uart_parity_t:
+        values:
+          UART_PARITY_DISABLE: 0
+      uart_stop_bits_t:
+        values:
+          UART_STOP_BITS_1: 0
+      uart_hw_flowcontrol_t:
+        values:
+          UART_HW_FLOWCTRL_DISABLE: 0
+      uart_sclk_t:
+        values:
+          UART_SCLK_DEFAULT: 0
+    types:
+      uart_config_t:
+        definition: |
+          typedef struct {
+              int baud_rate;
+              uart_word_length_t data_bits;
+              uart_parity_t parity;
+              uart_stop_bits_t stop_bits;
+              uart_hw_flowcontrol_t flow_ctrl;
+              int rx_flow_ctrl_thresh;
+              uart_sclk_t source_clk;
+          } uart_config_t;
+
+  "soc/gpio_num.h":
+    macros:
+      GPIO_NUM_0: "0"
+      GPIO_NUM_10: "10"
+      GPIO_NUM_12: "12"
+      GPIO_NUM_13: "13"
+      GPIO_NUM_NC: "-1"
+    types:
+      gpio_num_t: int

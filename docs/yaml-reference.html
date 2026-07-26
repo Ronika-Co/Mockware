@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YAML reference — mockware</title>
+  <meta name="description" content="Complete YAML schema reference for mockware templates: macros, types, enums, structs, functions, C++ classes, namespaces.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a href="index.html" class="logo"><span>mock</span>ware</a>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#start">Quick start</a></li>
+        <li><a href="test-patterns.html">Testing</a></li>
+        <li><a href="https://github.com/Ronika-Co/Mockware">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="hero" style="padding:40px 0">
+    <div class="container">
+      <h1>YAML <span>reference</span></h1>
+      <p>Complete schema for mockware template files.</p>
+    </div>
+  </div>
+
+  <section>
+    <div class="container">
+
+      <h2>Top-level structure</h2>
+      <pre><code><span style="color:#79c0ff">headers:</span>              <span style="color:#8b949e"># required — map of header path → header config</span>
+  <span style="color:#a5d6ff">"path/to/header.h"</span>:   <span style="color:#8b949e"># key is the include path, determines output location</span>
+    language: c           <span style="color:#8b949e"># "c" (default) or "cpp"</span>
+    includes: []          <span style="color:#8b949e"># quoted includes: #include "file.h"</span>
+    system_includes: []   <span style="color:#8b949e"># angle includes: #include &lt;file.h&gt;</span>
+    macros: {}            <span style="color:#8b949e"># #define entries</span>
+    types: {}             <span style="color:#8b949e"># typedef entries</span>
+    enums: {}             <span style="color:#8b949e"># enum definitions</span>
+    functions: {}         <span style="color:#8b949e"># C function declarations</span>
+    namespaces: {}        <span style="color:#8b949e"># C++ namespaces (classes + functions)</span></code></pre>
+
+      <h2>Macros</h2>
+      <p>Two forms: simple value and function-like (variadic).</p>
+      <pre><code>macros:
+  <span style="color:#8b949e"># Simple #define NAME value</span>
+  ESP_OK: <span style="color:#a5d6ff">"0"</span>
+  GPIO_OUT: <span style="color:#a5d6ff">"1"</span>
+
+  <span style="color:#8b949e"># Function-like #define NAME(...) body</span>
+  ESP_LOGI:
+    kind: variadic
+    body: <span style="color:#a5d6ff">"((void)0)"</span>
+
+  <span style="color:#8b949e"># Function-like with fixed params: #define NAME(x) body</span>
+  pdMS_TO_TICKS:
+    kind: variadic
+    body: <span style="color:#a5d6ff">"((x) / portTICK_PERIOD_MS)"</span></code></pre>
+
+      <h2>Types</h2>
+      <p>Two forms: simple typedef and full definition.</p>
+      <pre><code>types:
+  <span style="color:#8b949e"># Simple: typedef int esp_err_t;</span>
+  esp_err_t: int
+
+  <span style="color:#8b949e"># Complex: raw definition string</span>
+  wifi_init_config_t:
+    definition: <span style="color:#a5d6ff">|
+      typedef struct {
+          int magic;
+      } wifi_init_config_t;</span>
+
+  gpio_config_t:
+    definition: <span style="color:#a5d6ff">"typedef struct { int pin; int mode; } gpio_config_t;"</span></code></pre>
+
+      <h2>Enums</h2>
+      <pre><code>enums:
+  wifi_mode_t:
+    values:
+      WIFI_MODE_NULL: 0
+      WIFI_MODE_STA: 1
+      WIFI_MODE_AP: 2
+
+  <span style="color:#8b949e"># Generates:</span>
+  <span style="color:#8b949e"># typedef enum {</span>
+  <span style="color:#8b949e">#     WIFI_MODE_NULL = 0,</span>
+  <span style="color:#8b949e">#     WIFI_MODE_STA = 1,</span>
+  <span style="color:#8b949e">#     WIFI_MODE_AP = 2,</span>
+  <span style="color:#8b949e"># } wifi_mode_t;</span></code></pre>
+
+      <h2>Functions (C)</h2>
+      <table>
+        <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+        <tr><td><code>return</code></td><td>No</td><td>Return type (default: <code>void</code>)</td></tr>
+        <tr><td><code>params</code></td><td>No</td><td>List of typed params (default: empty)</td></tr>
+        <tr><td><code>body</code></td><td>No</td><td>Custom implementation (default: auto-generated based on return type)</td></tr>
+      </table>
+      <pre><code>functions:
+  gpio_set_level:
+    return: esp_err_t
+    params: [<span style="color:#a5d6ff">"int pin"</span>, <span style="color:#a5d6ff">"int level"</span>]
+    body: <span style="color:#a5d6ff">"return ESP_OK;"</span>     <span style="color:#8b949e"># custom body</span>
+
+  gpio_get_level:
+    return: int
+    params: [<span style="color:#a5d6ff">"int pin"</span>]          <span style="color:#8b949e"># no body → auto-generated: "return 0;"</span>
+
+  nvs_flash_init:
+    return: esp_err_t
+    params: []                  <span style="color:#8b949e"># auto: "return 0;"</span></code></pre>
+
+      <h4>Auto-generated body rules</h4>
+      <table>
+        <tr><th>Return type</th><th>Generated body</th></tr>
+        <tr><td><code>void</code></td><td>(empty)</td></tr>
+        <tr><td><code>bool</code></td><td><code>return false;</code></td></tr>
+        <tr><td><code>int</code>, numeric types</td><td><code>return 0;</code></td></tr>
+        <tr><td>Pointer types (<code>*</code>)</td><td><code>return NULL;</code></td></tr>
+        <tr><td><code>struct ...</code></td><td><code>return (type){0};</code></td></tr>
+        <tr><td><code>enum ...</code></td><td><code>return 0;</code></td></tr>
+        <tr><td>Anything else</td><td><code>return 0;</code></td></tr>
+      </table>
+
+      <h2>Generated C code pattern</h2>
+      <p>Each function <code>foo</code> generates three things:</p>
+      <pre><code><span style="color:#8b949e">// 1. Default implementation (static)</span>
+static int foo_default(int x) {
+    return 0;
+}
+
+<span style="color:#8b949e">// 2. Overridable function pointer (extern in mockware/fakes.h)</span>
+int (*foo_mock)(int x) = foo_default;
+
+<span style="color:#8b949e">// 3. Public dispatcher</span>
+int foo(int x) {
+    return foo_mock(x);
+}</code></pre>
+
+      <h2>C++ namespaces</h2>
+      <pre><code>namespaces:
+  drivers:
+    <span style="color:#8b949e"># Free functions inside namespace</span>
+    functions:
+      sensor_isr_handler:
+        return: void
+        params: [<span style="color:#a5d6ff">"int irq"</span>, <span style="color:#a5d6ff">"void (*callback)(void*)"</span>]
+
+    <span style="color:#8b949e"># Enums inside namespace</span>
+    enums:
+      sensor_mode_t:
+        values:
+          SENSOR_MODE_SLEEP: 0
+          SENSOR_MODE_ACTIVE: 1
+
+    <span style="color:#8b949e"># Classes inside namespace</span>
+    classes:
+      TemperatureSensor:
+        constructors: []
+        destructor: ~
+        methods: {}
+        static_methods: {}
+        member_variables: {}</code></pre>
+
+      <h2>Classes</h2>
+      <table>
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><code>constructors</code></td><td>List of constructor configs: <code>{params: [], body: "", init_list: []}</code></td></tr>
+        <tr><td><code>destructor</code></td><td>Destructor body (<code>~</code> = default, <code>""</code> = default, omit = default)</td></tr>
+        <tr><td><code>methods</code></td><td>Virtual methods with <code>return</code>, <code>params</code>, <code>body</code>, <code>const</code></td></tr>
+        <tr><td><code>static_methods</code></td><td>Static class methods</td></tr>
+        <tr><td><code>member_variables</code></td><td>Map of name → type (with optional default: <code>"bool = false"</code>)</td></tr>
+      </table>
+
+      <pre><code>classes:
+  BLEDevice:
+    constructors:
+      - params: []
+      - params: [<span style="color:#a5d6ff">"const char* name"</span>]
+        body: <span style="color:#a5d6ff">"this->name_ = name;"</span>
+    destructor: ~
+    methods:
+      init:
+        return: bool
+        params: [<span style="color:#a5d6ff">"const char* device_name"</span>]
+        body: <span style="color:#a5d6ff">"return true;"</span>
+      start_advertising:
+        return: bool
+        params: []
+        <span style="color:#8b949e"># no body → auto: "return false;"</span>
+      is_connected:
+        return: bool
+        params: []
+        is_const: true              <span style="color:#8b949e"># → bool is_connected() const</span>
+    static_methods:
+      get_instance:
+        return: <span style="color:#a5d6ff">"nimble::BLEDevice*"</span>
+        params: []
+    member_variables:
+      initialized_: <span style="color:#a5d6ff">"bool = false"</span>   <span style="color:#8b949e"># default value in constructor init list</span>
+      device_name_: <span style="color:#a5d6ff">"std::string"</span></code></pre>
+
+      <h3>Generated C++ class pattern</h3>
+      <pre><code><span style="color:#8b949e">// Header: include/device/sensor.hpp</span>
+namespace drivers {
+
+class TemperatureSensor {
+public:
+    TemperatureSensor() : last_value_(0.0f) {}
+    TemperatureSensor(int pin) : pin_(pin), last_value_(0.0f) {}
+    virtual ~TemperatureSensor() = default;
+
+    virtual float read() { return 25.0f; }
+    virtual sensor_err_t calibrate() { return 0; }
+    static float get_reference_voltage() { return 3.3f; }
+
+protected:
+    int pin_;
+    float last_value_;
+};
+
+void sensor_isr_handler(int irq, void (*callback)(void*));
+
+}  // namespace drivers</code></pre>
+
+      <h3>Test usage (virtual override)</h3>
+      <pre><code><span style="color:#8b949e">// In your test file:</span>
+struct MockSensor : public drivers::TemperatureSensor {
+    float read() override { return 42.0f; }
+    sensor_err_t calibrate() override {
+        calibrate_called_ = true;
+        return 0;
+    }
+    bool calibrate_called_ = false;
+};
+
+TEST_CASE("mock sensor") {
+    MockSensor sensor;
+    REQUIRE(sensor.read() == 42.0f);
+
+    sensor.calibrate();
+    REQUIRE(sensor.calibrate_called_);
+}</code></pre>
+
+      <h2>Includes</h2>
+      <pre><code>includes:             <span style="color:#8b949e"># Quoted includes: #include "file.h"</span>
+  - <span style="color:#a5d6ff">"esp_err.h"</span>
+  - <span style="color:#a5d6ff">"esp_event.h"</span>
+
+system_includes:      <span style="color:#8b949e"># Angle includes: #include &lt;file.h&gt;</span>
+  - <span style="color:#a5d6ff">&lt;stdint.h&gt;</span>
+  - <span style="color:#a5d6ff">&lt;cstdint&gt;</span></code></pre>
+
+      <h2>Complete C example</h2>
+      <pre><code><span style="color:#8b949e"># mock_template.yml</span>
+headers:
+  <span style="color:#a5d6ff">"esp_err.h"</span>:
+    macros:
+      ESP_OK: <span style="color:#a5d6ff">"0"</span>
+    types:
+      esp_err_t: int
+
+  <span style="color:#a5d6ff">"driver/gpio.h"</span>:
+    language: c
+    includes: [<span style="color:#a5d6ff">"esp_err.h"</span>]
+    macros:
+      GPIO_OUT: <span style="color:#a5d6ff">"1"</span>
+    enums:
+      gpio_mode_t:
+        values:
+          GPIO_MODE_OUTPUT: 0
+          GPIO_MODE_INPUT: 1
+    types:
+      gpio_config_t:
+        definition: <span style="color:#a5d6ff">"typedef struct { int pin; int mode; } gpio_config_t;"</span>
+    functions:
+      gpio_set_level:
+        return: esp_err_t
+        params: [<span style="color:#a5d6ff">"int pin"</span>, <span style="color:#a5d6ff">"int level"</span>]
+
+  <span style="color:#a5d6ff">"esp_timer.h"</span>:
+    includes: [<span style="color:#a5d6ff">"esp_err.h"</span>]
+    types:
+      esp_timer_handle_t: void*
+    functions:
+      esp_timer_get_time:
+        return: int64_t
+        params: []
+
+  <span style="color:#a5d6ff">"nvs_flash.h"</span>:
+    includes: [<span style="color:#a5d6ff">"esp_err.h"</span>]
+    functions:
+      nvs_flash_init:
+        return: esp_err_t
+        params: []
+      nvs_flash_erase:
+        return: esp_err_t
+        params: []</code></pre>
+
+      <h2>Complete C++ example</h2>
+      <pre><code><span style="color:#8b949e"># cpp_template.yml</span>
+headers:
+  <span style="color:#a5d6ff">"drivers/sensor.hpp"</span>:
+    language: cpp
+    includes: [<span style="color:#a5d6ff">"&lt;cstdint&gt;"</span>]
+    types:
+      sensor_err_t: int
+    enums:
+      sensor_mode_t:
+        values:
+          SLEEP: 0
+          ACTIVE: 1
+    namespaces:
+      drivers:
+        classes:
+          TemperatureSensor:
+            constructors:
+              - params: [<span style="color:#a5d6ff">"int pin"</span>]
+            methods:
+              read:
+                return: float
+                params: []
+              calibrate:
+                return: sensor_err_t
+                params: []
+            static_methods:
+              get_ref:
+                return: float
+                params: []
+            member_variables:
+              pin_: int
+              last_val_: <span style="color:#a5d6ff">"float = 0.0f"</span>
+        functions:
+          isr_handler:
+            return: void
+            params: [<span style="color:#a5d6ff">"int irq"</span>]</code></pre>
+
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p><a href="index.html">Back to home</a> &middot; <a href="https://github.com/Ronika-Co/Mockware">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

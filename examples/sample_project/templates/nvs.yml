@@ -1,0 +1,74 @@
+# =============================================================================
+# NVS (Non-Volatile Storage) headers
+# =============================================================================
+
+headers:
+  "nvs_flash.h":
+    includes:
+      - "esp_err.h"
+    functions:
+      nvs_flash_init:
+        return: esp_err_t
+        params: []
+      nvs_flash_erase:
+        return: esp_err_t
+        params: []
+
+  "nvs.h":
+    includes:
+      - "esp_err.h"
+    system_includes:
+      - <stddef.h>
+    macros:
+      NVS_READWRITE: "0x0002"
+    types:
+      nvs_handle_t: void*
+      nvs_open_mode_t: int
+    functions:
+      nvs_open:
+        return: esp_err_t
+        params:
+          [
+            "const char* ns",
+            "nvs_open_mode_t open_mode",
+            "nvs_handle_t* out_handle",
+          ]
+      nvs_set_blob:
+        return: esp_err_t
+        params:
+          [
+            "nvs_handle_t handle",
+            "const char* key",
+            "const void* value",
+            "size_t length",
+          ]
+      nvs_get_blob:
+        return: esp_err_t
+        params:
+          [
+            "nvs_handle_t handle",
+            "const char* key",
+            "void* out_value",
+            "size_t* out_length",
+          ]
+      nvs_set_str:
+        return: esp_err_t
+        params: ["nvs_handle_t handle", "const char* key", "const char* value"]
+      nvs_get_str:
+        return: esp_err_t
+        params:
+          [
+            "nvs_handle_t handle",
+            "const char* key",
+            "char* out_value",
+            "size_t* out_length",
+          ]
+      nvs_commit:
+        return: esp_err_t
+        params: ["nvs_handle_t handle"]
+      nvs_erase_key:
+        return: esp_err_t
+        params: ["nvs_handle_t handle", "const char* key"]
+      nvs_close:
+        return: void
+        params: ["nvs_handle_t handle"]

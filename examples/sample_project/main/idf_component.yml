@@ -1,0 +1,11 @@
+dependencies:
+  espressif/esp_lcd_ili9341: 2.0.2
+  espressif/esp_lvgl_port: 2.8.0~1
+  h2zero/esp-nimble-cpp: 2.5.0
+  espressif/button: 4.1.7
+  joltwallet/littlefs: 1.21.1
+  pierrejay/ezmodbus: 1.1.8
+  esp-idf-lib/tca95x5: 1.0.7
+  esp-idf-lib/pcf8563: 1.0.7
+  espressif/coap: 4.3.5~6
+  espressif/bq27220: 0.1.1

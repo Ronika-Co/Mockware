@@ -1,113 +1,74 @@
 # mockware
 
-Generate mock/stub SDK layers for embedded unit testing.
-Scans project source → auto-detects missing external SDK headers
-from #include directives → generates stub headers with
-function-pointer overrides for test-time replacement.
+> Generate mock SDK layers for embedded unit testing from YAML templates.
 
-## CLI reference
+## Key links
 
-### `mockware scan <project_path>`
+- Repository: https://github.com/Ronika-Co/Mockware
+- Documentation: https://ronika-co.github.io/Mockware/
+- YAML reference: https://ronika-co.github.io/Mockware/yaml-reference.html
+- Test patterns: https://ronika-co.github.io/Mockware/test-patterns.html
 
-Auto-detect missing external SDK dependencies.
+## What is mockware?
 
-```
-  -o, --output FILE             Output YAML path (default: missing_apis.yml)
-  --mode [full|partial]         full=scratch, partial=merge (default: partial)
-  --existing FILE               Existing YAML to merge into (for --mode partial)
-  -I, --include-dir DIR         Extra include-search directories
-  --include PATTERN             Source glob patterns (repeatable)
-  --exclude PATTERN             Exclude glob patterns (repeatable)
-  -v, --verbose                 Verbose output
-```
+mockware is a CLI tool that takes a YAML template describing external
+SDK headers and generates compilable mock implementations. It supports:
 
-Produces 6-section YAML: headers, types, macros, enums, structs, functions.
-Project-internal symbols are auto-filtered via scan_project_symbols().
-Use --exclude to skip generated SDK dirs (mock-sdk/**).
+- C functions with overridable function pointers
+- C++ classes with virtual methods (override in tests)
+- Namespaces, enums, macros, typedefs, struct definitions
+- Nested paths (e.g., "driver/gpio.h" creates include/driver/gpio.h)
 
-### `mockware parse <project_path>`
-
-Alias for `scan` — identical behaviour.
-
-### `mockware generate`
-
-Generate mock SDK stubs from a YAML knowledge base.
-
-```
-  -p, --project DIR   Root of project source tree (required)
-  -i, --input FILE    YAML input from scan/parse (required)
-  -o, --output DIR    Output directory for mock SDK tree (required)
-  --custom-impl DIR   User-provided .c implementation overrides
-  -v, --verbose       Verbose output
-```
-
-## YAML format
-
-```yaml
-headers:       {path: {includes: [dependency, ...]}}
-types:         {name: underlying_type_string}
-macros:        {name: value_string}
-               # value starting with '(' → function-like (no space in #define)
-enums:         {name: {values: {member: int_or_str, ...}}}
-structs:       {name: {definition: "typedef struct { ... } name;"}}
-functions:     {name: {return:, params: [typed_param, ...],
-                       header:, body:, kind:}}
-```
-
-Function fields: return (default void), params (list with types),
-header (path for attribution → source/<path>.c; missing → general.c),
-body (custom stub body), kind ("inline" for static inline).
-
-## Generated tree
-
-```
-output/
-├── CMakeLists.txt          → builds as mock_sdk
-├── include/
-│   ├── <header>.h          → per-header stub (defs + function decls)
-│   └── mockware/
-│       ├── types.h         → typedefs + auto-detected std includes
-│       ├── macros.h        → #define macros
-│       ├── enums.h         → enum defs
-│       ├── structs.h       → struct defs
-│       └── fakes.h         → extern function-pointer declarations
-└── source/
-    ├── <header>.c          → per-header impl
-    └── general.c           → untagged function impls
-```
-
-## Key patterns
-
-### Function-pointer override
-
-Each generated function `foo`:
-- `foo_default()` — default impl (return 0/NULL/empty)
-- `foo_mock` — overridable function pointer
-- `foo()` — delegates to `_mock`
-
-Tests include `mockware/fakes.h` to get `extern` `_mock` declarations.
-
-### Function-like macros
-
-YAML `MACRO: (x) value` → `#define MACRO(x) value` (no space).
-Standard for FreeRTOS-style macros like `pdMS_TO_TICKS`.
-
-### Standard type includes
-
-Generator scans YAML for uint64_t, size_t, bool, FILE, etc. and
-auto-adds #include <stdint.h>, <stddef.h>, etc. to mockware/types.h.
-
-### Merge workflow
+## Quick start
 
 ```bash
-mockware scan . -o apis.yml                     # first scan
-# edit apis.yml ...
-mockware scan . --existing apis.yml --mode partial \  # re-scan merges
-    --exclude "mock-sdk/**"
-mockware generate --project . -i apis.yml -o mock-sdk  # regenerate
+# Download a pre-built binary from GitHub Releases:
+# https://github.com/Ronika-Co/Mockware/releases
+#
+# Or run directly from source:
+git clone https://github.com/Ronika-Co/Mockware.git
+cd Mockware
+
+# Generate mock SDK from a directory of templates
+uv run mockware generate templates/ -o mock-sdk
+
+# Or from individual files
+uv run mockware generate esp.yml freertos.yml -o mock-sdk
 ```
 
-## Repository
+Then compile your tests with `-I mock-sdk/include` and link `mock-sdk/source/*.c`.
 
-- https://github.com/Ronika-Co/Mockware
-- https://ronika-co.github.io/Mockware/
+## Example YAML
+
+```yaml
+headers:
+  "esp_err.h":
+    macros:
+      ESP_OK: "0"
+    types:
+      esp_err_t: int
+  "driver/gpio.h":
+    includes: ["esp_err.h"]
+    functions:
+      gpio_set_level:
+        return: esp_err_t
+        params: ["int pin", "int level"]
+```
+
+## C mocking pattern
+
+```c
+#include "mockware/fakes.h"
+void test_gpio() {
+    gpio_set_level_mock = &my_stub;
+    gpio_set_level(1, 1);  // calls my_stub
+}
+```
+
+## C++ mocking pattern
+
+```cpp
+struct MockSensor : public drivers::TemperatureSensor {
+    float read() override { return 42.0f; }
+};
+```

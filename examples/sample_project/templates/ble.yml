@@ -1,0 +1,45 @@
+# =============================================================================
+# BLE (Bluetooth Low Energy) headers
+# =============================================================================
+
+headers:
+  "nimble/BLE.h":
+    language: cpp
+    includes:
+      - <cstdint>
+    namespaces:
+      nimble:
+        classes:
+          BLEDevice:
+            constructors:
+              - params: []
+            methods:
+              init:
+                return: bool
+                params: ["const char* device_name"]
+                body: "return true;"
+              start_advertising:
+                return: bool
+                params: []
+              stop_advertising:
+                return: bool
+                params: []
+              connect:
+                return: bool
+                params: ["const char* peer_addr"]
+                body: "return true;"
+              disconnect:
+                return: bool
+                params: []
+              is_connected:
+                return: bool
+                params: []
+                body: "return false;"
+            static_methods:
+              get_instance:
+                return: "nimble::BLEDevice*"
+                params: []
+            member_variables:
+              initialized_: "bool = false"
+              connected_: "bool = false"
+              device_name_: "std::string"

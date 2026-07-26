@@ -1,16 +1,15 @@
 [project]
 name = "mockware"
-version = "0.0.1"
-description = "Generate mock/stub SDK layers for embedded unit testing — parse real SDK headers into a YAML knowledge base, then produce stub headers + overridable function-pointer implementations."
+version = "0.2.0"
+description = "Generate mock SDK layers for embedded unit testing from YAML templates — supports C and C++ (classes, namespaces, virtual methods)."
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
     "pyyaml>=6.0",
-    "pycparser>=2.21",
 ]
 
 [project.urls]
-repository = "https://github.com/your-org/mockware"
+repository = "https://github.com/Ronika-Co/Mockware"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,7 +29,7 @@ dev = [
 
 [tool.ruff]
 target-version = "py310"
-line-length = 90
+line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]

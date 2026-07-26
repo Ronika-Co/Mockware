@@ -1,0 +1,511 @@
+# =============================================================================
+# ESP-related headers
+# =============================================================================
+
+headers:
+  "esp_err.h":
+    macros:
+      ESP_OK: "0"
+      ESP_FAIL: "-1"
+      ESP_ERR_NVS_NO_FREE_PAGES: "0x1100"
+      ESP_ERR_NVS_NEW_VERSION_FOUND: "0x1101"
+      ESP_ERR_NVS_NOT_FOUND: "0x1102"
+      ESP_ERROR_CHECK:
+        body: "(x) (x)"
+      esp_err_to_name:
+        body: "(x) \"\""
+    types:
+      esp_err_t: int
+
+  "esp_log.h":
+    macros:
+      ESP_LOGI:
+        kind: variadic
+        body: "((void)0)"
+      ESP_LOGD:
+        kind: variadic
+        body: "((void)0)"
+      ESP_LOGE:
+        kind: variadic
+        body: "((void)0)"
+      ESP_LOGW:
+        kind: variadic
+        body: "((void)0)"
+      CONFIG_LOG_DEFAULT_LEVEL: "3"
+
+  "esp_timer.h":
+    includes:
+      - "esp_err.h"
+    system_includes:
+      - <stdint.h>
+    types:
+      esp_timer_handle_t: void*
+      esp_timer_create_args_t:
+        definition: |
+          typedef struct {
+              void (*callback)(void*);
+              void* arg;
+              int dispatch_method;
+              const char* name;
+          } esp_timer_create_args_t;
+    macros:
+      ESP_TIMER_TASK: "1"
+    functions:
+      esp_timer_create:
+        return: esp_err_t
+        params:
+          [
+            "const esp_timer_create_args_t* args",
+            "esp_timer_handle_t* out_handle",
+          ]
+        body: "return ESP_OK;"
+      esp_timer_start_once:
+        return: esp_err_t
+        params: ["esp_timer_handle_t timer", "uint64_t timeout_us"]
+        body: "return ESP_OK;"
+      esp_timer_stop:
+        return: esp_err_t
+        params: ["esp_timer_handle_t timer"]
+        body: "return ESP_OK;"
+      esp_timer_delete:
+        return: esp_err_t
+        params: ["esp_timer_handle_t timer"]
+        body: "return ESP_OK;"
+      esp_timer_get_time:
+        return: int64_t
+        params: []
+
+  "esp_event.h":
+    includes:
+      - "esp_err.h"
+    system_includes:
+      - <stdint.h>
+      - <stddef.h>
+    types:
+      esp_event_loop_handle_t: void*
+      esp_event_base_t: const char*
+      esp_event_handler_t:
+        definition: "typedef void (*esp_event_handler_t)(void*, esp_event_base_t, int32_t, void*);"
+      esp_event_handler_instance_t: void*
+    macros:
+      ESP_EVENT_ANY_ID: "-1"
+      ESP_EVENT_DECLARE_BASE:
+        body: "(x) extern esp_event_base_t x"
+      ESP_EVENT_DEFINE_BASE:
+        body: "(x) esp_event_base_t x = #x"
+      COAP_EVENT: '((esp_event_base_t)"COAP_EVENT")'
+      BATTERY_EVENT: '((esp_event_base_t)"BATTERY_EVENT")'
+      COAP_EVENT_CONNECTED: "0"
+      COAP_EVENT_DISCONNECTED: "1"
+      ON_POWER_EVENT: "2"
+      ON_BATTERY_EVENT: "3"
+    functions:
+      esp_event_loop_create_default:
+        return: esp_err_t
+        params: []
+      esp_event_handler_register:
+        return: esp_err_t
+        params:
+          [
+            "esp_event_base_t event_base",
+            "int32_t event_id",
+            "esp_event_handler_t event_handler",
+            "void* event_handler_arg",
+          ]
+      esp_event_handler_unregister:
+        return: esp_err_t
+        params:
+          [
+            "esp_event_base_t event_base",
+            "int32_t event_id",
+            "esp_event_handler_t event_handler",
+          ]
+      esp_event_post:
+        return: esp_err_t
+        params:
+          [
+            "esp_event_base_t event_base",
+            "int32_t event_id",
+            "void* event_data",
+            "size_t event_data_size",
+            "int ticks_to_wait",
+          ]
+
+  "esp_wifi.h":
+    includes:
+      - "esp_err.h"
+      - "esp_event.h"
+      - "esp_netif.h"
+      - "esp_netif_types.h"
+    system_includes:
+      - <stdint.h>
+    types:
+      wifi_init_config_t:
+        definition: |
+          typedef struct {
+              int magic;
+          } wifi_init_config_t;
+      wifi_event_sta_disconnected_t:
+        definition: |
+          typedef struct {
+              int reason;
+              uint8_t ssid[32];
+              uint8_t ssid_len;
+              uint8_t bssid[6];
+          } wifi_event_sta_disconnected_t;
+      wifi_event_ap_staconnected_t:
+        definition: |
+          typedef struct {
+              uint8_t mac[6];
+              uint8_t aid;
+          } wifi_event_ap_staconnected_t;
+      wifi_event_ap_stadisconnected_t:
+        definition: |
+          typedef struct {
+              uint8_t mac[6];
+              uint8_t aid;
+          } wifi_event_ap_stadisconnected_t;
+      wifi_ap_record_t:
+        definition: |
+          typedef struct {
+              uint8_t bssid[6];
+              uint8_t ssid[33];
+              int8_t rssi;
+          } wifi_ap_record_t;
+      wifi_config_t:
+        definition: |
+          typedef union {
+              struct {
+                  uint8_t ssid[32];
+                  uint8_t password[64];
+                  struct {
+                      int authmode;
+                  } threshold;
+                  struct {
+                      int capable;
+                      int required;
+                  } pmf_cfg;
+              } sta;
+              struct {
+                  uint8_t ssid[32];
+                  uint8_t password[64];
+                  uint8_t ssid_len;
+                  uint8_t channel;
+                  uint8_t max_connection;
+                  int authmode;
+              } ap;
+          } wifi_config_t;
+    macros:
+      WIFI_IF_STA: "0"
+      WIFI_IF_AP: "1"
+      WIFI_AUTH_OPEN: "0"
+      WIFI_AUTH_WPA2_PSK: "3"
+      WIFI_PS_NONE: "0"
+      WIFI_EVENT: "0"
+      WIFI_EVENT_STA_START: "0"
+      WIFI_EVENT_STA_STOP: "1"
+      WIFI_EVENT_STA_DISCONNECTED: "2"
+      WIFI_EVENT_AP_START: "3"
+      WIFI_EVENT_AP_STACONNECTED: "4"
+      WIFI_EVENT_AP_STADISCONNECTED: "5"
+      WIFI_INIT_CONFIG_DEFAULT:
+        kind: variadic
+        body: "(wifi_init_config_t){0}"
+    enums:
+      wifi_mode_t:
+        values:
+          WIFI_MODE_NULL: 0
+          WIFI_MODE_STA: 1
+          WIFI_MODE_AP: 2
+          WIFI_MODE_APSTA: 3
+    functions:
+      esp_wifi_init:
+        return: esp_err_t
+        params: ["const wifi_init_config_t* config"]
+      esp_wifi_deinit:
+        return: esp_err_t
+        params: []
+      esp_wifi_set_mode:
+        return: esp_err_t
+        params: ["wifi_mode_t mode"]
+      esp_wifi_set_config:
+        return: esp_err_t
+        params: ["int interface", "void* config"]
+      esp_wifi_start:
+        return: esp_err_t
+        params: []
+      esp_wifi_stop:
+        return: esp_err_t
+        params: []
+      esp_wifi_connect:
+        return: esp_err_t
+        params: []
+      esp_wifi_disconnect:
+        return: esp_err_t
+        params: []
+      esp_wifi_set_ps:
+        return: esp_err_t
+        params: ["int ps_type"]
+      esp_wifi_sta_get_ap_info:
+        return: esp_err_t
+        params: ["void* ap_info"]
+
+  "esp_netif.h":
+    includes:
+      - "esp_err.h"
+      - "esp_netif_types.h"
+    system_includes:
+      - <stdint.h>
+    types:
+      esp_netif_config_t:
+        definition: |
+          typedef struct {
+              int placeholder;
+          } esp_netif_config_t;
+      esp_netif_ip_info_t:
+        definition: |
+          typedef struct {
+              esp_ip4_addr_t ip;
+              esp_ip4_addr_t netmask;
+              esp_ip4_addr_t gw;
+          } esp_netif_ip_info_t;
+      ip_event_got_ip_t:
+        definition: |
+          typedef struct {
+              esp_netif_t* esp_netif;
+              esp_netif_ip_info_t ip_info;
+              int ip_changed;
+          } ip_event_got_ip_t;
+    macros:
+      ESP_NETIF_DEFAULT_OPENTHREAD:
+        kind: variadic
+        body: "(esp_netif_config_t){0}"
+      IP_EVENT: "0"
+      IP_EVENT_STA_GOT_IP: "0"
+      IPSTR: '"%d.%d.%d.%d"'
+      IP2STR:
+        kind: variadic
+        body: "(int)((__VA_ARGS__)->addr & 0xFF), (int)((__VA_ARGS__)->addr >> 8 & 0xFF), (int)((__VA_ARGS__)->addr >> 16 & 0xFF), (int)((__VA_ARGS__)->addr >> 24 & 0xFF)"
+    functions:
+      esp_netif_init:
+        return: esp_err_t
+        params: []
+      esp_netif_new:
+        return: esp_netif_t*
+        params: ["const esp_netif_config_t* config"]
+      esp_netif_destroy:
+        return: void
+        params: ["esp_netif_t* netif"]
+      esp_netif_attach:
+        return: esp_err_t
+        params: ["esp_netif_t* netif", "void* driver"]
+      esp_netif_set_default_netif:
+        return: void
+        params: ["esp_netif_t* netif"]
+      esp_netif_create_default_wifi_sta:
+        return: esp_netif_t*
+        params: []
+      esp_netif_create_default_wifi_ap:
+        return: esp_netif_t*
+        params: []
+
+  "esp_netif_types.h":
+    includes:
+      - "esp_err.h"
+    types:
+      esp_ip4_addr_t:
+        definition: |
+          typedef struct {
+              uint32_t addr;
+          } esp_ip4_addr_t;
+      esp_ip4addr_t: esp_ip4_addr_t
+      esp_netif_t: void*
+
+  "esp_sntp.h":
+    system_includes:
+      - <sys/time.h>
+    macros:
+      ESP_SNTP_OPMODE_POLL: "0"
+      SNTP_SYNC_MODE_IMMED: "0"
+    functions:
+      esp_sntp_setoperatingmode:
+        return: void
+        params: ["int mode"]
+      esp_sntp_setservername:
+        return: void
+        params: ["int idx", "const char* server"]
+      esp_sntp_set_sync_mode:
+        return: void
+        params: ["int mode"]
+      sntp_set_time_sync_notification_cb:
+        return: void
+        params: ["void (*cb)(struct timeval*)"]
+      sntp_set_sync_interval:
+        return: void
+        params: ["int interval_ms"]
+      esp_sntp_init:
+        return: void
+        params: []
+      sntp_restart:
+        return: void
+        params: []
+
+  "esp_system.h":
+    includes:
+      - "esp_err.h"
+    system_includes:
+      - <stddef.h>
+    macros:
+      CONFIG_LOG_DEFAULT_LEVEL: "3"
+    functions:
+      esp_random:
+        return: int
+        params: []
+        body: "return 42;"
+      esp_restart:
+        return: void
+        params: []
+        body: ""
+      esp_reset_reason:
+        return: int
+        params: []
+        body: "return 0;"
+      esp_get_free_heap_size:
+        return: size_t
+        params: []
+        body: "return 1024 * 1024;"
+      esp_app_get_description:
+        return: void
+        params: ["void* desc"]
+        body: ""
+
+  "esp_mac.h":
+    macros:
+      MACSTR: '"%02x:%02x:%02x:%02x:%02x:%02x"'
+      MAC2STR:
+        kind: variadic
+        body: "(int)((__VA_ARGS__)[0]), (int)((__VA_ARGS__)[1]), (int)((__VA_ARGS__)[2]), (int)((__VA_ARGS__)[3]), (int)((__VA_ARGS__)[4]), (int)((__VA_ARGS__)[5])"
+
+  "esp_vfs_eventfd.h":
+    includes:
+      - "esp_err.h"
+    macros:
+      ESP_VFS_EVENTD_CONFIG_INIT_DEFAULT: "{}"
+    types:
+      esp_vfs_eventfd_config_t:
+        definition: |
+          typedef struct {
+              int max_fds;
+          } esp_vfs_eventfd_config_t;
+    functions:
+      esp_vfs_eventfd_register:
+        return: esp_err_t
+        params: ["const esp_vfs_eventfd_config_t* config"]
+        body: "return ESP_OK;"
+      esp_vfs_eventfd_unregister:
+        return: esp_err_t
+        params: []
+        body: "return ESP_OK;"
+
+  "esp_openthread.h":
+    includes:
+      - "esp_err.h"
+      - "openthread/instance.h"
+      - "openthread/dataset.h"
+      - "openthread/thread.h"
+      - "hal/uart_types.h"
+      - "soc/gpio_num.h"
+    system_includes:
+      - <stdint.h>
+      - <assert.h>
+    enums:
+      esp_openthread_radio_mode_t:
+        values:
+          RADIO_MODE_NATIVE: 0
+      esp_openthread_host_connection_mode_t:
+        values:
+          HOST_CONNECTION_MODE_CLI_UART: 0
+    types:
+      esp_openthread_types:
+        definition: |
+          typedef struct {
+              esp_openthread_radio_mode_t radio_mode;
+          } esp_openthread_radio_config_t;
+
+          typedef struct {
+              int port;
+              uart_config_t uart_config;
+              int rx_pin;
+              int tx_pin;
+          } esp_openthread_uart_config_t;
+
+          typedef struct {
+              esp_openthread_host_connection_mode_t host_connection_mode;
+              esp_openthread_uart_config_t host_uart_config;
+          } esp_openthread_host_connection_config_t;
+
+          typedef struct {
+              const char *storage_partition_name;
+              int netif_queue_size;
+              int task_queue_size;
+          } esp_openthread_port_config_t;
+
+          typedef struct {
+              esp_openthread_radio_config_t radio_config;
+              esp_openthread_host_connection_config_t host_config;
+              esp_openthread_port_config_t port_config;
+          } esp_openthread_platform_config_t;
+      esp_openthread_state_event_callback_t:
+        definition: "typedef void (*esp_openthread_state_event_callback_t)(void *ctx);"
+    functions:
+      esp_openthread_init:
+        return: esp_err_t
+        params: ["const esp_openthread_platform_config_t* config"]
+      esp_openthread_get_instance:
+        return: "otInstance*"
+        params: []
+        body: "static otInstance instance = {0}; return &instance;"
+      esp_openthread_launch_mainloop:
+        return: esp_err_t
+        params: []
+      esp_openthread_auto_start:
+        return: esp_err_t
+        params: ["const otOperationalDatasetTlvs* aDatasetTlvs"]
+      esp_openthread_set_state_changed_callback:
+        return: esp_err_t
+        params:
+          [
+            "esp_openthread_state_event_callback_t callback",
+            "void* ctx",
+          ]
+      otSetStateChangedCallback:
+        return: otError
+        params:
+          [
+            "otInstance* aInstance",
+            "void (*aCallback)(otChangedFlags, void*)",
+            "void* aContext",
+          ]
+
+  "esp_openthread_cli.h":
+    includes:
+      - "esp_err.h"
+    functions:
+      esp_openthread_cli_init:
+        return: esp_err_t
+        params: []
+      esp_openthread_cli_create_task:
+        return: esp_err_t
+        params: []
+
+  "esp_openthread_netif_glue.h":
+    includes:
+      - "esp_netif.h"
+      - "esp_openthread.h"
+    functions:
+      esp_openthread_netif_glue_init:
+        return: void*
+        params: ["const esp_openthread_platform_config_t* config"]
+      esp_openthread_netif_glue_deinit:
+        return: void
+        params: []

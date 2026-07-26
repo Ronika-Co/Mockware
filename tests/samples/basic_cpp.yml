@@ -1,0 +1,39 @@
+headers:
+  "device/sensor.hpp":
+    language: cpp
+    includes:
+      - <cstdint>
+    types:
+      sensor_err_t: int
+    enums:
+      sensor_mode_t:
+        values:
+          SENSOR_MODE_SLEEP: 0
+          SENSOR_MODE_ACTIVE: 1
+    namespaces:
+      drivers:
+        classes:
+          TemperatureSensor:
+            constructors:
+              - params: ["int pin"]
+                init_list: ["pin_(pin)"]
+            methods:
+              read:
+                return: float
+                params: []
+                body: "return 25.0f;"
+              calibrate:
+                return: sensor_err_t
+                params: []
+            static_methods:
+              get_reference_voltage:
+                return: float
+                params: []
+                body: "return 3.3f;"
+            member_variables:
+              pin_: int
+              last_value_: "float = 0.0f"
+        functions:
+          sensor_isr_handler:
+            return: void
+            params: ["int irq", "void (*callback)(void*)"]

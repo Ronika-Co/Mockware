@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test patterns — mockware</title>
+  <meta name="description" content="How to use generated mocks in unit tests: C function-pointer overrides, C++ virtual method overrides, call counting, error simulation, fixtures.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a href="index.html" class="logo"><span>mock</span>ware</a>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="yaml-reference.html">YAML reference</a></li>
+        <li><a href="https://github.com/Ronika-Co/Mockware">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="hero" style="padding:40px 0">
+    <div class="container">
+      <h1>Test <span>patterns</span></h1>
+      <p>How to use generated mocks in your unit tests.</p>
+    </div>
+  </div>
+
+  <section>
+    <div class="container">
+
+      <h2>Setup: include paths</h2>
+      <p>Compile your tests with the mock include directory <em>before</em> any real SDK paths so the mock headers take precedence.</p>
+      <pre><code><span style="color:#8b949e"># Using g++/clang++</span>
+g++ -I mock-sdk/include \       <span style="color:#8b949e"># mock headers first</span>
+    -I /path/to/your/project \  <span style="color:#8b949e"># your project headers</span>
+    mock-sdk/source/*.c \        <span style="color:#8b949e"># mock implementations</span>
+    your_project/*.cpp \         <span style="color:#8b949e"># code under test</span>
+    your_test.cpp \             <span style="color:#8b949e"># your tests</span>
+    -o test_runner</code></pre>
+
+      <h2>Pattern 1: Basic C function-pointer override</h2>
+      <p>Include <code>mockware/fakes.h</code> to get access to the <code>_mock</code> function pointers. Assign your stub to replace the default implementation.</p>
+      <pre><code><span style="color:#8b949e">// test_gpio.cpp</span>
+#include &lt;cassert&gt;
+#include <span style="color:#a5d6ff">"driver/gpio.h"</span>      <span style="color:#8b949e">// mock header (from mock-sdk/include)</span>
+#include <span style="color:#a5d6ff">"mockware/fakes.h"</span>   <span style="color:#8b949e">// extern function pointer declarations</span>
+
+void test_gpio_set_level_success() {
+    <span style="color:#8b949e">// Replace with a lambda that returns success</span>
+    gpio_set_level_mock = [](int pin, int level) -> esp_err_t {
+        return ESP_OK;
+    };
+
+    esp_err_t result = gpio_set_level(1, 1);
+    assert(result == ESP_OK);
+}</code></pre>
+
+      <h2>Pattern 2: Call counting</h2>
+      <p>Use a lambda with a captured counter to verify a function is called the expected number of times.</p>
+      <pre><code>void test_called_exactly_once() {
+    int call_count = 0;
+
+    gpio_set_level_mock = [&call_count](int pin, int level) -> esp_err_t {
+        call_count++;
+        return ESP_OK;
+    };
+
+    gpio_set_level(1, 1);
+    assert(call_count == 1);
+
+    gpio_set_level(2, 0);
+    assert(call_count == 2);
+}</code></pre>
+
+      <h2>Pattern 3: Argument verification</h2>
+      <p>Capture and verify the arguments passed to the mock function.</p>
+      <pre><code>void test_args_are_passed_correctly() {
+    int captured_pin = -1;
+    int captured_level = -1;
+
+    gpio_set_level_mock = [&](int pin, int level) -> esp_err_t {
+        captured_pin = pin;
+        captured_level = level;
+        return ESP_FAIL;
+    };
+
+    gpio_set_level(5, 1);
+
+    assert(captured_pin == 5);
+    assert(captured_level == 1);
+}</code></pre>
+
+      <h2>Pattern 4: Simulating errors</h2>
+      <p>Return error codes from the mock to test error handling paths in your code.</p>
+      <pre><code>void test_handles_nvs_init_failure() {
+    <span style="color:#8b949e">// Simulate NVS init failing with no free pages</span>
+    nvs_flash_init_mock = []() -> esp_err_t {
+        return ESP_ERR_NVS_NO_FREE_PAGES;
+    };
+    nvs_flash_erase_mock = []() -> esp_err_t {
+        return ESP_OK;
+    };
+
+    <span style="color:#8b949e">// Test that your code handles the erase+retry logic</span>
+    esp_err_t result = NvsStorage::init();
+    assert(result == ESP_OK);  <span style="color:#8b949e">// should recover via erase+retry</span>
+}</code></pre>
+
+      <h2>Pattern 5: Sequential behavior</h2>
+      <p>Return different values on successive calls to simulate state changes.</p>
+      <pre><code>void test_sequential_calls() {
+    int call = 0;
+
+    esp_timer_get_time_mock = [&call]() -> int64_t {
+        return ++call * 1000;
+    };
+
+    assert(Utils::millis() == 1000);
+    assert(Utils::millis() == 2000);
+    assert(Utils::millis() == 3000);
+}</code></pre>
+
+      <h2>Pattern 6: Restoring default</h2>
+      <p>Each mock has a <code>_default</code> function. Save and restore the mock pointer around a test.</p>
+      <pre><code>void test_restore_default() {
+    <span style="color:#8b949e">// Save the default</span>
+    auto saved = gpio_set_level_mock;
+
+    <span style="color:#8b949e">// Override for this test</span>
+    gpio_set_level_mock = [](int, int) -> esp_err_t { return ESP_FAIL; };
+    assert(gpio_set_level(1, 1) == ESP_FAIL);
+
+    <span style="color:#8b949e">// Restore</span>
+    gpio_set_level_mock = saved;
+    assert(gpio_set_level(1, 1) == ESP_OK);  <span style="color:#8b949e">// back to default</span>
+}</code></pre>
+
+      <p>Or use <code>func_default</code> directly (it's declared as <code>static</code> in the source, so you need the function pointer address via <code>extern</code>):</p>
+      <pre><code><span style="color:#8b949e">// In your test file, declare the default</span>
+extern int gpio_get_level_default(int pin);
+
+void test_restore() {
+    gpio_get_level_mock = gpio_get_level_default;
+}</code></pre>
+
+      <h2>Pattern 7: C++ virtual method override</h2>
+      <p>For C++ classes, inherit from the generated class and override virtual methods.</p>
+      <pre><code>#include <span style="color:#a5d6ff">"drivers/sensor.hpp"</span>
+#include &lt;catch2/catch_test_macros.hpp&gt;
+
+<span style="color:#8b949e">// Define a mock subclass</span>
+struct MockSensor : public drivers::TemperatureSensor {
+    float read() override { return 42.0f; }
+
+    sensor_err_t calibrate() override {
+        calibrate_called_ = true;
+        return 0;
+    }
+
+    bool calibrate_called_ = false;
+};
+
+TEST_CASE("mock sensor with virtual override") {
+    MockSensor sensor;
+
+    CHECK(sensor.read() == 42.0f);
+
+    sensor.calibrate();
+    CHECK(sensor.calibrate_called_);
+}
+
+TEST_CASE("default implementation") {
+    <span style="color:#8b949e">// Using the real class with default virtual impl</span>
+    drivers::TemperatureSensor sensor;
+    CHECK(sensor.read() == 25.0f);     <span style="color:#8b949e">// auto-generated default</span>
+    CHECK(sensor.calibrate() == 0);
+}</code></pre>
+
+      <h2>Pattern 8: Test fixture for mock state</h2>
+      <p>Use setUp/tearDown to reset all mocks between tests.</p>
+      <pre><code>struct GpioTestFixture {
+    GpioTestFixture() {
+        <span style="color:#8b949e">// Save defaults</span>
+        gpio_set_level_mock = [](int pin, int level) -> esp_err_t {
+            last_pin = pin;
+            last_level = level;
+            return ESP_OK;
+        };
+    }
+
+    ~GpioTestFixture() {
+        <span style="color:#8b949e">// Mocks are automatically destroyed with the fixture</span>
+    }
+
+    static int last_pin;
+    static int last_level;
+};
+
+int GpioTestFixture::last_pin = -1;
+int GpioTestFixture::last_level = -1;
+
+TEST_CASE_METHOD(GpioTestFixture, "gpio with fixture") {
+    gpio_set_level(3, 1);
+    CHECK(last_pin == 3);
+    CHECK(last_level == 1);
+}</code></pre>
+
+      <h2>Pattern 9: Testing your project code (end-to-end)</h2>
+      <p>The most powerful pattern: compile your actual project source files against the mock SDK and test real logic with mocked hardware dependencies.</p>
+      <pre><code><span style="color:#8b949e">// test_wifi_manager.cpp — tests real project code with mocked ESP-IDF</span>
+#include &lt;cassert&gt;
+#include <span style="color:#a5d6ff">"wifi_manager.h"</span>      <span style="color:#8b949e">// your project code</span>
+#include <span style="color:#a5d6ff">"mockware/fakes.h"</span>     <span style="color:#8b949e">// mock access</span>
+
+void test_wifi_start_calls_esp_wifi_start() {
+    bool wifi_started = false;
+
+    <span style="color:#8b949e">// Mock all dependencies</span>
+    nvs_flash_init_mock = []() -> esp_err_t { return ESP_OK; };
+    esp_event_loop_create_default_mock = []() -> esp_err_t { return ESP_OK; };
+    esp_netif_init_mock = []() -> esp_err_t { return ESP_OK; };
+    esp_wifi_init_mock = [](const wifi_init_config_t*) -> esp_err_t { return ESP_OK; };
+    esp_wifi_set_mode_mock = [](wifi_mode_t) -> esp_err_t { return ESP_OK; };
+    esp_wifi_start_mock = [&wifi_started]() -> esp_err_t {
+        wifi_started = true;
+        return ESP_OK;
+    };
+    esp_wifi_connect_mock = []() -> esp_err_t { return ESP_OK; };
+
+    <span style="color:#8b949e">// Call your real project code</span>
+    WifiService::init();
+    WifiService::start();
+
+    assert(wifi_started);
+}</code></pre>
+
+      <h2>Compilation checklist</h2>
+      <table>
+        <tr><th>Step</th><th>Example</th></tr>
+        <tr><td>1. Generate mocks</td><td><code>mockware generate template.yml -o mock-sdk</code></td></tr>
+        <tr><td>2. Add mock include</td><td><code>-I mock-sdk/include</code></td></tr>
+        <tr><td>3. Add project include</td><td><code>-I /path/to/your/project</code></td></tr>
+        <tr><td>4. Add mock sources</td><td><code>mock-sdk/source/*.c mock-sdk/source/*.cpp</code></td></tr>
+        <tr><td>5. Add project sources</td><td><code>your_project/*.cpp</code></td></tr>
+        <tr><td>6. Link test framework</td><td><code>-l catch2</code> or include header-only</td></tr>
+      </table>
+
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p><a href="index.html">Back to home</a> &middot; <a href="yaml-reference.html">YAML reference</a> &middot; <a href="https://github.com/Ronika-Co/Mockware">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

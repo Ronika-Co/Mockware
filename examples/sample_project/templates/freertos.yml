@@ -1,0 +1,72 @@
+# =============================================================================
+# FreeRTOS headers
+# =============================================================================
+
+headers:
+  "freertos/FreeRTOS.h":
+    system_includes:
+      - <stdint.h>
+    macros:
+      pdTRUE: "1"
+      pdFALSE: "0"
+      pdPASS: "1"
+      pdFAIL: "0"
+
+  "freertos/task.h":
+    includes:
+      - "freertos/FreeRTOS.h"
+    macros:
+      portMAX_DELAY: "0xFFFFFFFF"
+      portTICK_PERIOD_MS: "1"
+      pdMS_TO_TICKS:
+        kind: variadic
+        body: "((uint32_t)(__VA_ARGS__) / portTICK_PERIOD_MS)"
+    types:
+      TaskHandle_t: void*
+      TaskFunction_t:
+        definition: "typedef void (*TaskFunction_t)(void*);"
+    functions:
+      xTaskCreate:
+        return: int
+        params:
+          [
+            "TaskFunction_t task_func",
+            "const char* name",
+            "int stack_size",
+            "void* params",
+            "int priority",
+            "TaskHandle_t* task_handle",
+          ]
+        body: "return pdPASS;"
+      vTaskDelay:
+        return: void
+        params: ["int ticks"]
+      vTaskDelete:
+        return: void
+        params: ["TaskHandle_t task"]
+
+  "freertos/event_groups.h":
+    includes:
+      - "freertos/FreeRTOS.h"
+    macros:
+      BIT0: "1"
+      BIT1: "2"
+    types:
+      EventGroupHandle_t: void*
+      EventBits_t: int
+    functions:
+      xEventGroupCreate:
+        return: EventGroupHandle_t
+        params: []
+      xEventGroupClearBits:
+        return: EventBits_t
+        params: ["EventGroupHandle_t group", "EventBits_t bits"]
+      xEventGroupSetBits:
+        return: EventBits_t
+        params: ["EventGroupHandle_t group", "EventBits_t bits"]
+      xEventGroupGetBits:
+        return: EventBits_t
+        params: ["EventGroupHandle_t group"]
+      vEventGroupDelete:
+        return: void
+        params: ["EventGroupHandle_t group"]
