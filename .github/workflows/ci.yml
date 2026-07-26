@@ -79,8 +79,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   release:
-    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -102,3 +102,39 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mockware-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mockware*
+          body: |
+            ## mockware ${{ github.ref_name }}
+
+            Pre-built binaries for Linux and Windows (via PyInstaller).
+
+            - `mockware-ubuntu-latest` — Linux
+            - `mockware-windows-latest` — Windows
+
+            ### Usage
+
+            ```bash
+            # Run directly
+            ./mockware-ubuntu-latest --help
+
+            # Or rename and add to PATH
+            mv mockware-ubuntu-latest /usr/local/bin/mockware
+            mockware generate templates/ -o mock-sdk
+            ```
+          draft: false
+          prerelease: false
