@@ -73,7 +73,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pyinstaller pyyaml click
-      - run: pyinstaller --onefile --name mockware src/mockware/cli.py
+      - run: pyinstaller --onefile --name mockware --paths src src/mockware/cli.py
       - shell: bash
         run: |
           SUFFIX=

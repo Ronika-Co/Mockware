@@ -4,6 +4,11 @@ from pathlib import Path
 
 import click
 
+from mockware.generator.fakes_gen import generate_fakes_header
+from mockware.generator.header_gen import generate_headers
+from mockware.generator.source_gen import generate_sources
+from mockware.yaml_reader import read_configs
+
 
 @click.group()
 def main() -> None:
@@ -57,11 +62,6 @@ def generate(templates: tuple[str, ...], output: str, verbose: bool) -> None:
         └── source/
             └── <header>.c / .cpp       -- mock implementations
     """
-    from .generator.fakes_gen import generate_fakes_header
-    from .generator.header_gen import generate_headers
-    from .generator.source_gen import generate_sources
-    from .yaml_reader import read_configs
-
     yaml_files: list[Path] = []
     for t in templates:
         p = Path(t)
